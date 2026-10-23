@@ -2,6 +2,8 @@
 @inject ICategoryService Categories
 @inject CurrentUser CurrentUser
 @inject MoneyFormatter Money
+@inject DataChangeNotifier Notifier
+@inject ToastService Toasts
 
 <Modal Title="@Title">
     <EditForm Model="input" OnValidSubmit="SaveAsync">
@@ -123,6 +125,8 @@
                 await Categories.UpdateAsync(userId, Category.Id, input);
             }
 
+            Toasts.Show(Category is null ? $"Category “{input.Name.Trim()}” created" : "Category updated");
+            Notifier.NotifyChanged();
             await OnSaved.InvokeAsync();
         }
         catch (Exception ex) when (ex is ServiceValidationException or NotFoundException)

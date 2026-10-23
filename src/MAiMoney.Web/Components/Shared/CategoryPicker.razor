@@ -1,6 +1,7 @@
 @* Category dropdown with an inline "+ New" form, so a missing category can be created without leaving the transaction form. *@
 @inject ICategoryService Categories
 @inject CurrentUser CurrentUser
+@inject DataChangeNotifier Notifier
 
 <div class="input-group">
     <select id="@Id" class="form-select @CssClass" value="@(Value ?? string.Empty)" @onchange="OnSelectedAsync"
@@ -169,6 +170,7 @@
             categories.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
             creating = false;
             await SetValueAsync(created.Id);
+            Notifier.NotifyChanged();
         }
         catch (ServiceValidationException ex)
         {

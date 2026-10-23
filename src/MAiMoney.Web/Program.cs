@@ -18,6 +18,8 @@ builder.Services.AddControllers(options => options.Filters.Add<ApiExceptionFilte
 builder.Services.AddMAiMoneyServices(builder.Configuration);
 builder.Services.AddMAiMoneyAuthentication();
 builder.Services.AddSingleton<MoneyFormatter>();
+builder.Services.AddScoped<DataChangeNotifier>();
+builder.Services.AddScoped<ToastService>();
 
 // In the container the keys live on a volume, so sign-in cookies survive restarts.
 var keysPath = builder.Configuration["DataProtection:KeysPath"];
