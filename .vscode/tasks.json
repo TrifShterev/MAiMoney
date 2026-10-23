@@ -1,0 +1,81 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "MongoDB: start",
+      "detail": "Start the MongoDB container (docker compose up -d mongo)",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d", "--wait", "mongo"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "shared" }
+    },
+    {
+      "label": "MongoDB: stop",
+      "detail": "Stop the MongoDB container (data is kept in the volume)",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "stop", "mongo"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "build",
+      "detail": "Build the solution",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/MAiMoney.slnx", "/property:GenerateFullPaths=true", "/consoleloggerparameters:NoSummary"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "Web: run",
+      "detail": "Start MongoDB, then run the web app on http://localhost:5166",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/src/MAiMoney.Web", "--launch-profile", "http"],
+      "dependsOn": ["MongoDB: start"],
+      "problemMatcher": "$msCompile",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "Web: watch",
+      "detail": "Start MongoDB, then run the web app with hot reload (dotnet watch)",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["watch", "run", "--project", "${workspaceFolder}/src/MAiMoney.Web", "--launch-profile", "http"],
+      "dependsOn": ["MongoDB: start"],
+      "problemMatcher": "$msCompile",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "test",
+      "detail": "Start MongoDB, then run the service tests",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "${workspaceFolder}/MAiMoney.slnx"],
+      "dependsOn": ["MongoDB: start"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "Docker: up (everything)",
+      "detail": "Build and run MongoDB + the web app in Docker on http://localhost:8080",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d", "--build"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: down",
+      "detail": "Stop and remove the Docker containers (volumes are kept)",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "down"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}
