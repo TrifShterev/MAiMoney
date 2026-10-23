@@ -1,34 +1,254 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
+@using System.Security.Claims
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-<header class="app-header">
-    <nav class="container app-nav">
-        <a class="app-brand" href="">MAi<span>Money</span></a>
+<header class="app-header" @onkeydown="OnHeaderKeyDown">
+    <div class="container app-header-inner">
+        <a class="app-brand" href="">
+            <span class="app-brand-mark"><Icon Name="wallet" Size="18" /></span>
+            <span class="app-brand-name">MAi<span>Money</span></span>
+        </a>
 
         <AuthorizeView>
             <Authorized>
-                <div class="app-links">
-                    <NavLink class="app-link" href="" Match="NavLinkMatch.All">Dashboard</NavLink>
-                    <NavLink class="app-link" href="transactions">Transactions</NavLink>
-                    <NavLink class="app-link" href="categories">Categories</NavLink>
-                </div>
-                <div class="app-user">
-                    <span class="app-user-name">@context.User.Identity?.Name</span>
-                    <form method="post" action="auth/logout">
-                        <AntiforgeryToken />
-                        <button type="submit" class="btn btn-sm btn-outline-light">Log out</button>
-                    </form>
+                <nav class="app-nav" aria-label="Main">
+                    <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">
+                        <Icon Name="dashboard" /><span>Dashboard</span>
+                    </NavLink>
+                    <NavLink class="app-nav-link" href="transactions">
+                        <Icon Name="list" /><span>Transactions</span>
+                    </NavLink>
+                    <NavLink class="app-nav-link" href="categories">
+                        <Icon Name="tag" /><span>Categories</span>
+                    </NavLink>
+                </nav>
+
+                <div class="app-actions">
+                    <div class="app-menu">
+                        <button type="button" class="btn btn-primary app-quick-btn" title="Quick add (N)"
+                                aria-haspopup="menu" aria-expanded="@(openMenu == Menu.QuickAdd)" @onclick="() => ToggleMenu(Menu.QuickAdd)">
+                            <Icon Name="plus" />
+                            <span class="app-quick-label">New</span>
+                            <Icon Name="chevron-down" Size="16" CssClass="app-quick-caret" />
+                        </button>
+                        @if (openMenu == Menu.QuickAdd)
+                        {
+                            <div class="app-dropdown app-dropdown-end" role="menu" aria-label="Quick add">
+                                <div class="app-dropdown-header">Quick add</div>
+                                <button type="button" role="menuitem" class="app-dropdown-item" @onclick="() => OpenTransaction(TransactionType.Expense)">
+                                    <span class="item-icon item-icon-expense"><Icon Name="arrow-up-right" /></span>
+                                    <span class="item-text">
+                                        <span class="item-title">Expense</span>
+                                        <span class="item-hint">Money you spent</span>
+                                    </span>
+                                    <kbd>N</kbd>
+                                </button>
+                                <button type="button" role="menuitem" class="app-dropdown-item" @onclick="() => OpenTransaction(TransactionType.Income)">
+                                    <span class="item-icon item-icon-income"><Icon Name="arrow-down-left" /></span>
+                                    <span class="item-text">
+                                        <span class="item-title">Income</span>
+                                        <span class="item-hint">Money you received</span>
+                                    </span>
+                                </button>
+                                <div class="app-dropdown-divider"></div>
+                                <button type="button" role="menuitem" class="app-dropdown-item" @onclick="OpenCategory">
+                                    <span class="item-icon"><Icon Name="tag" /></span>
+                                    <span class="item-text">
+                                        <span class="item-title">Category</span>
+                                        <span class="item-hint">Group spending, set a budget</span>
+                                    </span>
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="app-menu">
+                        <button type="button" class="app-avatar-btn" aria-label="Account menu"
+                                aria-haspopup="menu" aria-expanded="@(openMenu == Menu.User)" @onclick="() => ToggleMenu(Menu.User)">
+                            <span class="app-avatar">@Initials(context.User.Identity?.Name)</span>
+                            <Icon Name="chevron-down" Size="16" CssClass="app-avatar-caret" />
+                        </button>
+                        @if (openMenu == Menu.User)
+                        {
+                            <div class="app-dropdown app-dropdown-end" role="menu" aria-label="Account">
+                                <div class="app-dropdown-user">
+                                    <span class="app-avatar app-avatar-lg">@Initials(context.User.Identity?.Name)</span>
+                                    <div class="min-w-0">
+                                        <div class="fw-semibold text-truncate">@context.User.Identity?.Name</div>
+                                        <div class="small text-body-secondary text-truncate">@context.User.FindFirstValue(ClaimTypes.Email)</div>
+                                    </div>
+                                </div>
+                                <div class="app-dropdown-divider"></div>
+                                <div class="app-dropdown-header">Appearance</div>
+                                <div class="theme-switch" role="group" aria-label="Color theme">
+                                    @foreach (var (value, label, icon) in Themes)
+                                    {
+                                        <button type="button" class="@(theme == value ? "active" : null)" aria-pressed="@(theme == value)"
+                                                @onclick="() => SetThemeAsync(value)">
+                                            <Icon Name="@icon" Size="15" />@label
+                                        </button>
+                                    }
+                                </div>
+                                <div class="app-dropdown-divider"></div>
+                                <form method="post" action="auth/logout">
+                                    <AntiforgeryToken />
+                                    <button type="submit" role="menuitem" class="app-dropdown-item">
+                                        <span class="item-icon"><Icon Name="log-out" /></span>
+                                        <span class="item-title">Log out</span>
+                                    </button>
+                                </form>
+                            </div>
+                        }
+                    </div>
                 </div>
             </Authorized>
+            <NotAuthorized>
+                <div class="app-actions">
+                    <a class="btn btn-sm btn-link text-body-secondary text-decoration-none" href="account/login">Log in</a>
+                    <a class="btn btn-sm btn-primary" href="account/register">Sign up</a>
+                </div>
+            </NotAuthorized>
         </AuthorizeView>
-    </nav>
+    </div>
 </header>
+
+@if (openMenu is not null)
+{
+    <div class="app-menu-scrim" @onclick="CloseMenu"></div>
+}
 
 <main class="container app-main">
     @Body
 </main>
+
+@if (quickAddType is { } type)
+{
+    <TransactionEditor DefaultType="type" OnSaved="CloseQuickAdd" OnCancel="CloseQuickAdd" />
+}
+
+@if (quickAddCategory)
+{
+    <CategoryEditor OnSaved="CloseQuickAdd" OnCancel="CloseQuickAdd" />
+}
+
+<Toaster />
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private enum Menu
+    {
+        QuickAdd,
+        User
+    }
+
+    private static readonly (string Value, string Label, string Icon)[] Themes =
+        [("light", "Light", "sun"), ("dark", "Dark", "moon"), ("auto", "Auto", "monitor")];
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private Menu? openMenu;
+    private TransactionType? quickAddType;
+    private bool quickAddCategory;
+    private string theme = "auto";
+    private DotNetObjectReference<MainLayout>? shortcutsRef;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        theme = await JS.InvokeAsync<string>("mmTheme.get");
+        if (AuthenticationState is not null && (await AuthenticationState).User.Identity?.IsAuthenticated == true)
+        {
+            shortcutsRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("mmShortcuts.register", shortcutsRef);
+        }
+    }
+
+    /// <summary>Called from app.js when the user presses N outside a form.</summary>
+    [JSInvokable]
+    public void OpenQuickAddExpense()
+    {
+        if (quickAddType is null && !quickAddCategory)
+        {
+            OpenTransaction(TransactionType.Expense);
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleMenu(Menu menu) => openMenu = openMenu == menu ? null : menu;
+
+    private void CloseMenu() => openMenu = null;
+
+    private void OnHeaderKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            CloseMenu();
+        }
+    }
+
+    private void OpenTransaction(TransactionType type)
+    {
+        CloseMenu();
+        quickAddCategory = false;
+        quickAddType = type;
+    }
+
+    private void OpenCategory()
+    {
+        CloseMenu();
+        quickAddType = null;
+        quickAddCategory = true;
+    }
+
+    private void CloseQuickAdd()
+    {
+        quickAddType = null;
+        quickAddCategory = false;
+    }
+
+    private async Task SetThemeAsync(string value)
+    {
+        theme = value;
+        await JS.InvokeVoidAsync("mmTheme.set", value);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (openMenu is not null)
+        {
+            openMenu = null;
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static string Initials(string? name)
+    {
+        var parts = (name ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length switch
+        {
+            0 => "?",
+            1 => parts[0][..1].ToUpperInvariant(),
+            _ => (parts[0][..1] + parts[^1][..1]).ToUpperInvariant()
+        };
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        shortcutsRef?.Dispose();
+    }
+}

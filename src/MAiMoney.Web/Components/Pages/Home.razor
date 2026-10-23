@@ -1,45 +1,100 @@
 ﻿@page "/"
 @attribute [Authorize]
+@implements IDisposable
 @inject ITransactionService Transactions
 @inject CurrentUser CurrentUser
 @inject MoneyFormatter Money
+@inject DataChangeNotifier Notifier
 
 <PageTitle>Dashboard · MAiMoney</PageTitle>
 
 <div class="page-header">
     <div>
-        <h1 class="h3 mb-0">Dashboard</h1>
-        <p class="text-muted mb-0">Your money at a glance</p>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">Your money at a glance</p>
     </div>
     <div class="page-actions">
         <MonthPicker Value="month" ValueChanged="ChangeMonthAsync" />
-        <button type="button" class="btn btn-primary" @onclick="() => showEditor = true">+ Add transaction</button>
+        <button type="button" class="btn btn-primary" @onclick="() => showEditor = true">
+            <Icon Name="plus" />Add transaction
+        </button>
     </div>
 </div>
 
 @if (summary is null)
 {
-    <p class="text-muted">Loading…</p>
+    <div class="row g-3 mb-4">
+        @for (var i = 0; i < 3; i++)
+        {
+            <div class="col-md-4"><div class="stat-card skeleton" style="height: 8.5rem"></div></div>
+        }
+    </div>
+    <div class="panel skeleton" style="height: 18rem"></div>
 }
 else
 {
     <div class="row g-3 mb-4">
-        <div class="col-sm-4">
+        <div class="col-md-4">
             <div class="stat-card">
-                <div class="stat-label">Income</div>
-                <div class="stat-value text-success">@Money.Format(summary.TotalIncome)</div>
+                <div class="stat-head">
+                    <span class="stat-icon stat-icon-income"><Icon Name="trending-up" /></span>
+                    <span class="stat-label">Income</span>
+                </div>
+                <div class="stat-value">@Money.Format(summary.TotalIncome)</div>
+                <div class="stat-foot">
+                    @(incomeCategories.Count switch
+                    {
+                        0 => "Nothing received yet",
+                        1 => "From 1 source",
+                        var n => $"From {n} sources"
+                    })
+                </div>
             </div>
         </div>
-        <div class="col-sm-4">
+        <div class="col-md-4">
             <div class="stat-card">
-                <div class="stat-label">Expenses</div>
-                <div class="stat-value text-danger">@Money.Format(summary.TotalExpenses)</div>
+                <div class="stat-head">
+                    <span class="stat-icon stat-icon-expense"><Icon Name="trending-down" /></span>
+                    <span class="stat-label">Expenses</span>
+                </div>
+                <div class="stat-value">@Money.Format(summary.TotalExpenses)</div>
+                <div class="stat-foot">
+                    @if (BudgetCount == 0)
+                    {
+                        <span>No budgets set</span>
+                    }
+                    else if (OverBudgetCount == 0)
+                    {
+                        <span class="text-income">All @BudgetCount budgets on track</span>
+                    }
+                    else
+                    {
+                        <span class="text-expense">@OverBudgetCount of @BudgetCount budgets exceeded</span>
+                    }
+                </div>
             </div>
         </div>
-        <div class="col-sm-4">
-            <div class="stat-card">
-                <div class="stat-label">Balance</div>
-                <div class="stat-value @(summary.Balance < 0 ? "text-danger" : "")">@Money.Format(summary.Balance)</div>
+        <div class="col-md-4">
+            <div class="stat-card stat-card-balance">
+                <div class="stat-head">
+                    <span class="stat-icon stat-icon-brand"><Icon Name="scale" /></span>
+                    <span class="stat-label">Balance</span>
+                </div>
+                <div class="stat-value @(summary.Balance < 0 ? "text-expense" : null)">@Money.Format(summary.Balance)</div>
+                <div class="stat-foot">
+                    @if (summary.TotalIncome > 0 && summary.Balance >= 0)
+                    {
+                        <span>You kept <strong>@Pct(summary.Balance / summary.TotalIncome * 100)%</strong> of your income</span>
+                    }
+                    else if (summary.Balance < 0)
+                    {
+                        <span class="text-expense">You spent more than you earned</span>
+                    }
+                    else
+                    {
+                        <span>Income minus expenses</span>
+                    }
+                </div>
             </div>
         </div>
     </div>
@@ -47,21 +102,42 @@ else
     <div class="row g-4">
         <div class="col-lg-7">
             <section class="panel">
-                <h2 class="panel-title">Spending by category</h2>
+                <div class="panel-header">
+                    <h2 class="panel-title">Spending by category</h2>
+                    @if (summary.TotalExpenses > 0)
+                    {
+                        <span class="panel-meta">@Money.Format(summary.TotalExpenses)</span>
+                    }
+                </div>
+
+                @if (summary.TotalExpenses > 0)
+                {
+                    <div class="share-bar" role="img" aria-label="Share of spending per category">
+                        @foreach (var category in expenseCategories.Where(c => c.Total > 0))
+                        {
+                            <span style="width: @Pct(category.Total / summary.TotalExpenses * 100)%; background-color: @(category.Color ?? "#adb5bd")"
+                                  title="@category.Name · @Pct(category.Total / summary.TotalExpenses * 100)%"></span>
+                        }
+                    </div>
+                }
+
                 @if (expenseCategories.Count == 0)
                 {
-                    <p class="text-muted mb-0">No expenses this month yet.</p>
+                    <div class="empty-state empty-state-sm">
+                        <span class="empty-state-icon"><Icon Name="pie" Size="22" /></span>
+                        <p class="mb-0">No expenses in @MonthName yet.</p>
+                    </div>
                 }
                 @foreach (var category in expenseCategories)
                 {
                     <div class="budget-row">
-                        <div class="d-flex justify-content-between gap-2">
+                        <div class="d-flex justify-content-between align-items-center gap-2">
                             <CategoryLabel Name="@category.Name" Color="@category.Color" />
                             <span class="fw-semibold text-nowrap">
                                 @Money.Format(category.Total)
                                 @if (category.MonthlyBudget is { } budget)
                                 {
-                                    <span class="text-muted fw-normal"> / @Money.Format(budget)</span>
+                                    <span class="text-body-secondary fw-normal"> / @Money.Format(budget)</span>
                                 }
                             </span>
                         </div>
@@ -72,11 +148,15 @@ else
                                  aria-valuenow="@Pct(percent)" aria-valuemin="0" aria-valuemax="100">
                                 <div class="progress-bar @BarClass(category, percent)" style="width: @Pct(Math.Min(percent, 100))%"></div>
                             </div>
-                            <div class="small mt-1 @(category.IsOverBudget ? "text-danger" : "text-muted")">
+                            <div class="budget-note @(category.IsOverBudget ? "text-expense" : null)">
                                 @(category.IsOverBudget
                                     ? $"Over budget by {Money.Format(category.Total - limit)}"
-                                    : $"{Money.Format(limit - category.Total)} left")
+                                    : $"{Money.Format(limit - category.Total)} left · {Pct(percent)}% used")
                             </div>
+                        }
+                        else if (summary.TotalExpenses > 0)
+                        {
+                            <div class="budget-note">@Pct(category.Total / summary.TotalExpenses * 100)% of spending · no budget</div>
                         }
                     </div>
                 }
@@ -85,12 +165,15 @@ else
             @if (incomeCategories.Count > 0)
             {
                 <section class="panel mt-4">
-                    <h2 class="panel-title">Income by category</h2>
+                    <div class="panel-header">
+                        <h2 class="panel-title">Income by category</h2>
+                        <span class="panel-meta">@Money.Format(summary.TotalIncome)</span>
+                    </div>
                     @foreach (var category in incomeCategories)
                     {
                         <div class="d-flex justify-content-between gap-2 py-1">
                             <CategoryLabel Name="@category.Name" Color="@category.Color" />
-                            <span class="fw-semibold text-success text-nowrap">@Money.Format(category.Total)</span>
+                            <span class="fw-semibold text-income text-nowrap">@Money.Format(category.Total)</span>
                         </div>
                     }
                 </section>
@@ -99,25 +182,30 @@ else
 
         <div class="col-lg-5">
             <section class="panel">
-                <div class="d-flex justify-content-between align-items-baseline">
+                <div class="panel-header">
                     <h2 class="panel-title">Recent transactions</h2>
-                    <a href="transactions" class="small">See all</a>
+                    <a href="transactions" class="panel-link">See all <Icon Name="chevron-right" Size="14" /></a>
                 </div>
                 @if (recent.Count == 0)
                 {
-                    <p class="text-muted mb-0">Nothing recorded in @month.ToString("MMMM", CultureInfo.InvariantCulture) yet.</p>
+                    <div class="empty-state empty-state-sm">
+                        <span class="empty-state-icon"><Icon Name="inbox" Size="22" /></span>
+                        <p class="mb-3">Nothing recorded in @MonthName yet.</p>
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => showEditor = true">Add a transaction</button>
+                    </div>
                 }
-                <ul class="list-unstyled mb-0">
+                <ul class="tx-list">
                     @foreach (var t in recent)
                     {
-                        <li class="recent-item">
-                            <div class="min-w-0">
-                                <CategoryLabel Name="@t.CategoryName" Color="@t.CategoryColor" />
-                                <div class="small text-muted text-truncate">
-                                    @t.Date.ToString("dd MMM", CultureInfo.InvariantCulture)@(t.Description is null ? "" : $" · {t.Description}")
+                        <li class="tx-item">
+                            <CategoryAvatar Name="@t.CategoryName" Color="@t.CategoryColor" />
+                            <div class="tx-main">
+                                <div class="tx-title">@(t.Description ?? t.CategoryName)</div>
+                                <div class="tx-sub">
+                                    @t.Date.ToString("dd MMM", CultureInfo.InvariantCulture)@(t.Description is null ? "" : $" · {t.CategoryName}")
                                 </div>
                             </div>
-                            <span class="fw-semibold text-nowrap @AmountClass(t.Type)">@Money.FormatSigned(t.Amount, t.Type)</span>
+                            <span class="tx-amount @AmountClass(t.Type)">@Money.FormatSigned(t.Amount, t.Type)</span>
                         </li>
                     }
                 </ul>
@@ -128,7 +216,7 @@ else
 
 @if (showEditor)
 {
-    <TransactionEditor OnSaved="OnSavedAsync" OnCancel="() => showEditor = false" />
+    <TransactionEditor OnSaved="() => showEditor = false" OnCancel="() => showEditor = false" />
 }
 
 @code {
@@ -139,7 +227,17 @@ else
     private IReadOnlyList<TransactionDto> recent = [];
     private bool showEditor;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    private string MonthName => month.ToString("MMMM", CultureInfo.InvariantCulture);
+
+    private int BudgetCount => expenseCategories.Count(c => c.MonthlyBudget is not null);
+
+    private int OverBudgetCount => expenseCategories.Count(c => c.IsOverBudget);
+
+    protected override Task OnInitializedAsync()
+    {
+        Notifier.Changed += OnDataChanged;
+        return LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -147,7 +245,7 @@ else
         summary = await Transactions.GetMonthlySummaryAsync(userId, month.Year, month.Month);
         expenseCategories = summary.Categories.Where(c => c.Type == TransactionType.Expense).ToList();
         incomeCategories = summary.Categories.Where(c => c.Type == TransactionType.Income && c.Total > 0).ToList();
-        recent = await Transactions.GetAsync(userId, new TransactionFilter { Year = month.Year, Month = month.Month, Limit = 5 });
+        recent = await Transactions.GetAsync(userId, new TransactionFilter { Year = month.Year, Month = month.Month, Limit = 6 });
     }
 
     private Task ChangeMonthAsync(DateOnly value)
@@ -156,11 +254,11 @@ else
         return LoadAsync();
     }
 
-    private async Task OnSavedAsync()
+    private void OnDataChanged() => _ = InvokeAsync(async () =>
     {
-        showEditor = false;
         await LoadAsync();
-    }
+        StateHasChanged();
+    });
 
     private static string Pct(decimal value) => value.ToString("0.#", CultureInfo.InvariantCulture);
 
@@ -168,5 +266,7 @@ else
         category.IsOverBudget ? "bg-danger" : percent >= 80 ? "bg-warning" : "bg-success";
 
     private static string AmountClass(TransactionType type) =>
-        type == TransactionType.Income ? "text-success" : "text-danger";
+        type == TransactionType.Income ? "text-income" : "text-expense";
+
+    public void Dispose() => Notifier.Changed -= OnDataChanged;
 }

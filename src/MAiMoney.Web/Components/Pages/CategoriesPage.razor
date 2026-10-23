@@ -1,18 +1,23 @@
 @page "/categories"
 @attribute [Authorize]
+@implements IDisposable
 @inject ICategoryService Categories
 @inject CurrentUser CurrentUser
 @inject MoneyFormatter Money
+@inject DataChangeNotifier Notifier
+@inject ToastService Toasts
 
 <PageTitle>Categories · MAiMoney</PageTitle>
 
 <div class="page-header">
     <div>
-        <h1 class="h3 mb-0">Categories</h1>
-        <p class="text-muted mb-0">Group your transactions and set monthly budgets</p>
+        <h1 class="page-title">Categories</h1>
+        <p class="page-subtitle">Group your transactions and set monthly budgets</p>
     </div>
     <div class="page-actions">
-        <button type="button" class="btn btn-primary" @onclick="() => OpenCreate(TransactionType.Expense)">+ New category</button>
+        <button type="button" class="btn btn-primary" @onclick="() => OpenCreate(TransactionType.Expense)">
+            <Icon Name="plus" />New category
+        </button>
     </div>
 </div>
 
@@ -23,7 +28,10 @@
 
 @if (categories is null)
 {
-    <p class="text-muted">Loading…</p>
+    <div class="row g-4">
+        <div class="col-lg-6"><div class="panel skeleton" style="height: 20rem"></div></div>
+        <div class="col-lg-6"><div class="panel skeleton" style="height: 12rem"></div></div>
+    </div>
 }
 else
 {
@@ -31,47 +39,60 @@ else
         @foreach (var type in new[] { TransactionType.Expense, TransactionType.Income })
         {
             var items = categories.Where(c => c.Type == type).ToList();
-            <div class="col-md-6">
+            var isExpense = type == TransactionType.Expense;
+            <div class="col-lg-6">
                 <section class="panel">
-                    <div class="d-flex justify-content-between align-items-baseline">
+                    <div class="panel-header">
                         <h2 class="panel-title">
-                            @(type == TransactionType.Expense ? "Expenses" : "Income")
-                            <span class="badge rounded-pill text-bg-light fw-normal">@items.Count</span>
+                            <span class="stat-icon stat-icon-sm @(isExpense ? "stat-icon-expense" : "stat-icon-income")">
+                                <Icon Name="@(isExpense ? "arrow-up-right" : "arrow-down-left")" Size="15" />
+                            </span>
+                            @(isExpense ? "Expenses" : "Income")
+                            <span class="count-badge">@items.Count</span>
                         </h2>
-                        <button type="button" class="btn btn-sm btn-link" @onclick="() => OpenCreate(type)">+ Add</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => OpenCreate(type)">
+                            <Icon Name="plus" Size="15" />Add
+                        </button>
                     </div>
 
                     @if (items.Count == 0)
                     {
-                        <p class="text-muted mb-0">No @(type == TransactionType.Expense ? "expense" : "income") categories yet.</p>
+                        <div class="empty-state empty-state-sm">
+                            <span class="empty-state-icon"><Icon Name="tag" Size="22" /></span>
+                            <p class="mb-0">No @(isExpense ? "expense" : "income") categories yet.</p>
+                        </div>
                     }
                     <ul class="list-unstyled mb-0">
                         @foreach (var category in items)
                         {
-                            <li class="category-item">
-                                <span class="category-swatch" style="background-color: @(category.Color ?? "#adb5bd")"></span>
+                            <li class="category-item" @key="category.Id">
+                                <CategoryAvatar Name="@category.Name" Color="@category.Color" />
                                 <div class="flex-grow-1 min-w-0">
                                     <div class="fw-semibold">@category.Name</div>
                                     @if (category.Description is not null)
                                     {
-                                        <div class="small text-muted">@category.Description</div>
+                                        <div class="small text-body-secondary">@category.Description</div>
                                     }
                                     @if (category.MonthlyBudget is { } budget)
                                     {
-                                        <div class="small">Budget: @Money.Format(budget) / month</div>
+                                        <span class="chip chip-sm mt-1">Budget @Money.Format(budget) / month</span>
                                     }
                                 </div>
                                 <div class="category-actions">
                                     @if (confirmDeleteId == category.Id)
                                     {
                                         <span class="small me-1">Delete?</span>
-                                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(category.Id)">Yes</button>
-                                        <button type="button" class="btn btn-sm btn-link text-secondary" @onclick="() => confirmDeleteId = null">No</button>
+                                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(category)">Yes</button>
+                                        <button type="button" class="btn btn-sm btn-link text-body-secondary" @onclick="() => confirmDeleteId = null">No</button>
                                     }
                                     else
                                     {
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEdit(category)">Edit</button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => AskDelete(category.Id)">Delete</button>
+                                        <button type="button" class="btn-icon" title="Edit" aria-label="Edit @category.Name" @onclick="() => OpenEdit(category)">
+                                            <Icon Name="pencil" Size="16" />
+                                        </button>
+                                        <button type="button" class="btn-icon btn-icon-danger" title="Delete" aria-label="Delete @category.Name" @onclick="() => AskDelete(category.Id)">
+                                            <Icon Name="trash" Size="16" />
+                                        </button>
                                     }
                                 </div>
                             </li>
@@ -85,7 +106,7 @@ else
 
 @if (showEditor)
 {
-    <CategoryEditor Category="editing" DefaultType="newType" OnSaved="OnSavedAsync" OnCancel="CloseEditor" />
+    <CategoryEditor Category="editing" DefaultType="newType" OnSaved="CloseEditor" OnCancel="CloseEditor" />
 }
 
 @code {
@@ -96,7 +117,11 @@ else
     private CategoryDto? editing;
     private TransactionType newType = TransactionType.Expense;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        Notifier.Changed += OnDataChanged;
+        return LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -125,11 +150,12 @@ else
         editing = null;
     }
 
-    private async Task OnSavedAsync()
+    // Saved here, from the header's quick add, or from a transaction form.
+    private void OnDataChanged() => _ = InvokeAsync(async () =>
     {
-        CloseEditor();
         await LoadAsync();
-    }
+        StateHasChanged();
+    });
 
     private void AskDelete(string id)
     {
@@ -137,11 +163,12 @@ else
         confirmDeleteId = id;
     }
 
-    private async Task DeleteAsync(string id)
+    private async Task DeleteAsync(CategoryDto category)
     {
         try
         {
-            await Categories.DeleteAsync(await CurrentUser.GetIdAsync(), id);
+            await Categories.DeleteAsync(await CurrentUser.GetIdAsync(), category.Id);
+            Toasts.Show($"Category “{category.Name}” deleted");
             await LoadAsync();
         }
         catch (Exception ex) when (ex is ServiceValidationException or NotFoundException)
@@ -150,4 +177,6 @@ else
             error = ex.Message;
         }
     }
+
+    public void Dispose() => Notifier.Changed -= OnDataChanged;
 }

@@ -1,0 +1,46 @@
+@* Shows the messages from ToastService and hides each one after a few seconds. *@
+@implements IDisposable
+@inject ToastService ToastService
+
+<div class="toaster" role="status" aria-live="polite">
+    @foreach (var toast in ToastService.Toasts)
+    {
+        <div class="app-toast app-toast-@toast.Kind.ToString().ToLowerInvariant()" @key="toast.Id">
+            <Icon Name="@(toast.Kind == ToastKind.Success ? "check" : "alert")" CssClass="app-toast-icon" />
+            <span class="flex-grow-1">@toast.Message</span>
+            <button type="button" class="btn-icon btn-icon-sm" aria-label="Dismiss" @onclick="() => ToastService.Dismiss(toast.Id)">
+                <Icon Name="x" Size="16" />
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(4);
+
+    private readonly HashSet<Guid> scheduled = [];
+
+    protected override void OnInitialized() => ToastService.Changed += OnChanged;
+
+    private void OnChanged()
+    {
+        foreach (var toast in ToastService.Toasts.Where(t => scheduled.Add(t.Id)))
+        {
+            _ = DismissLaterAsync(toast.Id);
+        }
+
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DismissLaterAsync(Guid id)
+    {
+        await Task.Delay(Lifetime);
+        await InvokeAsync(() =>
+        {
+            scheduled.Remove(id);
+            ToastService.Dismiss(id);
+        });
+    }
+
+    public void Dispose() => ToastService.Changed -= OnChanged;
+}
