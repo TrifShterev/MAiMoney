@@ -51,11 +51,10 @@
     },
     {
       "label": "test",
-      "detail": "Start MongoDB, then run the service tests",
+      "detail": "Run the service tests (they start their own throw-away MongoDB)",
       "type": "process",
       "command": "dotnet",
       "args": ["test", "${workspaceFolder}/MAiMoney.slnx"],
-      "dependsOn": ["MongoDB: start"],
       "problemMatcher": "$msCompile",
       "group": { "kind": "test", "isDefault": true }
     },
