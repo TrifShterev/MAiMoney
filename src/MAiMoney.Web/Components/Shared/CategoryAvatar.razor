@@ -1,0 +1,15 @@
+@* A round badge in the category's color with its first letter, used in lists. *@
+<span class="category-avatar @CssClass" style="--cat: @(Color ?? "#8a9490")" aria-hidden="true">@Letter</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Color { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private string Letter => string.IsNullOrWhiteSpace(Name) ? "?" : Name.Trim()[..1].ToUpperInvariant();
+}

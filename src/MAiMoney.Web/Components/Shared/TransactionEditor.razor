@@ -2,6 +2,8 @@
 @inject ITransactionService Transactions
 @inject CurrentUser CurrentUser
 @inject MoneyFormatter Money
+@inject DataChangeNotifier Notifier
+@inject ToastService Toasts
 
 <Modal Title="@Title">
     <EditForm Model="input" OnValidSubmit="SaveAsync">
@@ -59,6 +61,10 @@
     [Parameter]
     public TransactionDto? Transaction { get; set; }
 
+    /// <summary>Type preselected for a new transaction.</summary>
+    [Parameter]
+    public TransactionType DefaultType { get; set; } = TransactionType.Expense;
+
     [Parameter]
     public EventCallback OnSaved { get; set; }
 
@@ -83,6 +89,10 @@
                 CategoryId = t.CategoryId,
                 Description = t.Description
             };
+        }
+        else
+        {
+            input.Type = DefaultType;
         }
     }
 
@@ -109,6 +119,10 @@
                 await Transactions.UpdateAsync(userId, Transaction.Id, input);
             }
 
+            Toasts.Show(Transaction is null
+                ? $"{(input.Type == TransactionType.Income ? "Income" : "Expense")} of {Money.Format(input.Amount ?? 0)} added"
+                : "Transaction updated");
+            Notifier.NotifyChanged();
             await OnSaved.InvokeAsync();
         }
         catch (Exception ex) when (ex is ServiceValidationException or NotFoundException)

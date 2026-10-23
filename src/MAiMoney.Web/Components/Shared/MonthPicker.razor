@@ -1,7 +1,18 @@
 <div class="month-picker" role="group" aria-label="Month">
-    <button type="button" class="btn btn-outline-secondary" @onclick="() => ChangeAsync(-1)" aria-label="Previous month">‹</button>
-    <span class="month-picker-label">@Value.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</span>
-    <button type="button" class="btn btn-outline-secondary" @onclick="() => ChangeAsync(1)" aria-label="Next month">›</button>
+    <button type="button" class="btn-icon" @onclick="() => ChangeAsync(-1)" aria-label="Previous month" title="Previous month">
+        <Icon Name="chevron-left" />
+    </button>
+    <span class="month-picker-label">
+        <Icon Name="calendar" Size="16" CssClass="text-body-secondary" />
+        @Value.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+    </span>
+    <button type="button" class="btn-icon" @onclick="() => ChangeAsync(1)" aria-label="Next month" title="Next month">
+        <Icon Name="chevron-right" />
+    </button>
+    @if (Value != ThisMonth)
+    {
+        <button type="button" class="month-picker-today" @onclick="() => ValueChanged.InvokeAsync(ThisMonth)">Today</button>
+    }
 </div>
 
 @code {

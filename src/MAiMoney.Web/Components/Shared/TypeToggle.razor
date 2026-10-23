@@ -1,11 +1,11 @@
 <div class="type-toggle" role="group" aria-label="Type">
-    <button type="button" class="btn @(Value == TransactionType.Expense ? "btn-danger" : "btn-outline-danger")"
+    <button type="button" class="type-toggle-btn type-toggle-expense @(Value == TransactionType.Expense ? "active" : null)"
             aria-pressed="@(Value == TransactionType.Expense)" @onclick="() => SelectAsync(TransactionType.Expense)">
-        Expense
+        <Icon Name="arrow-up-right" Size="16" />Expense
     </button>
-    <button type="button" class="btn @(Value == TransactionType.Income ? "btn-success" : "btn-outline-success")"
+    <button type="button" class="type-toggle-btn type-toggle-income @(Value == TransactionType.Income ? "active" : null)"
             aria-pressed="@(Value == TransactionType.Income)" @onclick="() => SelectAsync(TransactionType.Income)">
-        Income
+        <Icon Name="arrow-down-left" Size="16" />Income
     </button>
 </div>
 
