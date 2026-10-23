@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "maimoney-web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/MAiMoney.Web", "--launch-profile", "http"],
+      "port": 5166
+    }
+  ]
+}

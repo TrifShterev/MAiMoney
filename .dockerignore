@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/*.user
+.git
+.vs
+.vscode
+.idea
+.claude
+tests/

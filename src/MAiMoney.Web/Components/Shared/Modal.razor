@@ -1,0 +1,18 @@
+@* A Bootstrap modal shell that doesn't need Bootstrap's JavaScript. Render it with @if to show or hide it. *@
+
+<div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" aria-label="@Title">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            @ChildContent
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop show"></div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

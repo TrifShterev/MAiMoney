@@ -1,0 +1,80 @@
+# MAiMoney
+
+A simple personal finance tracker. Record income and expenses, organize them in categories, and keep an eye on monthly budgets.
+
+Built with ASP.NET Core 10, Blazor (Interactive Server) and MongoDB.
+
+## Run it
+
+### Everything in Docker
+
+```bash
+docker compose up -d --build
+```
+
+Open http://localhost:8080 and create an account. MongoDB data and the sign-in keys live in Docker volumes, so they survive restarts.
+
+### Local development
+
+Requires the .NET 10 SDK.
+
+```bash
+docker compose up -d mongo
+dotnet run --project src/MAiMoney.Web --launch-profile http
+```
+
+Open http://localhost:5166.
+
+### Tests
+
+The service tests are integration tests against a real MongoDB. Each run uses a throw-away database. Set `MAIMONEY_TEST_MONGO` to point them at another server.
+
+```bash
+docker compose up -d mongo
+dotnet test
+```
+
+Local test account used during development (only in your local database): `demo@maimoney.test` / `Demo-pass-2026`.
+
+## Structure
+
+| Project | Role |
+|---|---|
+| `src/MAiMoney.Web` | Web layer: Blazor UI, API controllers, cookie authentication, app wiring |
+| `src/MAiMoney.Services` | Business layer: entities, services with all rules, options, MongoDB access |
+| `tests/MAiMoney.Services.Tests` | xUnit integration tests for the services |
+
+There is no repository layer. Services work with `IMongoCollection<T>` directly through `MongoDbContext`.
+
+### Entities
+
+- **Category**:
+  - Fields: name, optional description, type (Income/Expense), color, and an optional monthly budget (expense categories only).
+  - Names are unique per user and type.
+  - A category can't be deleted while transactions use it.
+- **Transaction**:
+  - Fields: type, amount (> 0, max two decimals), date, category (must match the type) and an optional description.
+- **User**: email, display name and password hash. It is used only for authentication.
+
+### Configuration (`appsettings.json`)
+
+- `MongoDb:ConnectionString`, `MongoDb:DatabaseName`
+- `MAiMoney:CurrencyCode`: shown next to every amount (default `EUR`).
+- `MAiMoney:DefaultCategories`: created for every new account.
+- `DataProtection:KeysPath` (optional): where sign-in keys are persisted. Docker sets it to a volume.
+
+## API
+
+All endpoints require the sign-in cookie. Without it they return `401`. Errors are returned as ProblemDetails.
+
+| Method | Route | |
+|---|---|---|
+| GET | `/api/categories?type=Expense` | List categories |
+| GET/PUT/DELETE | `/api/categories/{id}` | Read, update, delete |
+| POST | `/api/categories` | Create |
+| GET | `/api/transactions?year=2026&month=10&type=&categoryId=&limit=` | List, newest first |
+| GET | `/api/transactions/summary?year=2026&month=10` | Monthly totals and budget usage |
+| GET/PUT/DELETE | `/api/transactions/{id}` | Read, update, delete |
+| POST | `/api/transactions` | Create |
+
+Login, registration and logout are form posts to `/auth/login`, `/auth/register` and `/auth/logout`.

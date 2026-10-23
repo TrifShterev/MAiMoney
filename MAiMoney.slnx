@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MAiMoney.Services/MAiMoney.Services.csproj" />
+    <Project Path="src/MAiMoney.Web/MAiMoney.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MAiMoney.Services.Tests/MAiMoney.Services.Tests.csproj" />
+  </Folder>
+</Solution>

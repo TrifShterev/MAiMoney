@@ -1,0 +1,206 @@
+@page "/transactions"
+@attribute [Authorize]
+@inject ITransactionService Transactions
+@inject ICategoryService Categories
+@inject CurrentUser CurrentUser
+@inject MoneyFormatter Money
+
+<PageTitle>Transactions · MAiMoney</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="h3 mb-0">Transactions</h1>
+        <p class="text-muted mb-0">Everything that came in and went out</p>
+    </div>
+    <div class="page-actions">
+        <MonthPicker Value="month" ValueChanged="ChangeMonthAsync" />
+        <button type="button" class="btn btn-primary" @onclick="OpenCreate">+ Add transaction</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <select class="form-select" aria-label="Filter by type" @bind="typeFilter" @bind:after="OnTypeFilterChangedAsync">
+        <option value="">All types</option>
+        <option value="@TransactionType.Expense">Expenses</option>
+        <option value="@TransactionType.Income">Income</option>
+    </select>
+    <select class="form-select" aria-label="Filter by category" @bind="categoryFilter" @bind:after="LoadAsync">
+        <option value="">All categories</option>
+        @foreach (var category in FilterCategories)
+        {
+            <option value="@category.Id">@category.Name</option>
+        }
+    </select>
+</div>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger py-2" role="alert">@error</div>
+}
+
+@if (transactions is null)
+{
+    <p class="text-muted">Loading…</p>
+}
+else if (transactions.Count == 0)
+{
+    <div class="panel empty-state">
+        <p class="mb-3">No transactions match this month and filter.</p>
+        <button type="button" class="btn btn-outline-primary" @onclick="OpenCreate">Add your first one</button>
+    </div>
+}
+else
+{
+    <div class="summary-line">
+        <span>@transactions.Count @(transactions.Count == 1 ? "transaction" : "transactions")</span>
+        <span class="text-success">In @Money.Format(TotalOf(TransactionType.Income))</span>
+        <span class="text-danger">Out @Money.Format(TotalOf(TransactionType.Expense))</span>
+    </div>
+
+    <div class="panel p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Category</th>
+                        <th scope="col" class="d-none d-md-table-cell">Description</th>
+                        <th scope="col" class="text-end">Amount</th>
+                        <th scope="col" class="text-end"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in transactions)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@t.Date.ToString("dd MMM", CultureInfo.InvariantCulture)<span class="d-none d-md-inline"> @t.Date.Year</span></td>
+                            <td>
+                                <CategoryLabel Name="@t.CategoryName" Color="@t.CategoryColor" />
+                                <div class="small text-muted d-md-none">@t.Description</div>
+                            </td>
+                            <td class="text-muted d-none d-md-table-cell">@t.Description</td>
+                            <td class="text-end text-nowrap fw-semibold @(t.Type == TransactionType.Income ? "text-success" : "text-danger")">
+                                @Money.FormatSigned(t.Amount, t.Type)
+                            </td>
+                            <td class="text-end text-nowrap">
+                                @if (confirmDeleteId == t.Id)
+                                {
+                                    <span class="small me-1">Delete?</span>
+                                    <button type="button" class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(t.Id)">Yes</button>
+                                    <button type="button" class="btn btn-sm btn-link text-secondary" @onclick="() => confirmDeleteId = null">No</button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEdit(t)">Edit</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => confirmDeleteId = t.Id">Delete</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (showEditor)
+{
+    <TransactionEditor Transaction="editing" OnSaved="OnSavedAsync" OnCancel="CloseEditor" />
+}
+
+@code {
+    private DateOnly month = MonthPicker.ThisMonth;
+    private IReadOnlyList<TransactionDto>? transactions;
+    private IReadOnlyList<CategoryDto> categories = [];
+    private string typeFilter = string.Empty;
+    private string categoryFilter = string.Empty;
+    private string? confirmDeleteId;
+    private string? error;
+    private bool showEditor;
+    private TransactionDto? editing;
+
+    private TransactionType? SelectedType =>
+        Enum.TryParse<TransactionType>(typeFilter, out var type) ? type : null;
+
+    private IEnumerable<CategoryDto> FilterCategories =>
+        SelectedType is { } type ? categories.Where(c => c.Type == type) : categories;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await Categories.GetAllAsync(await CurrentUser.GetIdAsync());
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        error = null;
+        confirmDeleteId = null;
+        var userId = await CurrentUser.GetIdAsync();
+        transactions = await Transactions.GetAsync(userId, new TransactionFilter
+        {
+            Year = month.Year,
+            Month = month.Month,
+            Type = SelectedType,
+            CategoryId = string.IsNullOrEmpty(categoryFilter) ? null : categoryFilter
+        });
+    }
+
+    private Task OnTypeFilterChangedAsync()
+    {
+        // A category of the other type can't match anything, so drop it.
+        if (!FilterCategories.Any(c => c.Id == categoryFilter))
+        {
+            categoryFilter = string.Empty;
+        }
+
+        return LoadAsync();
+    }
+
+    private Task ChangeMonthAsync(DateOnly value)
+    {
+        month = value;
+        return LoadAsync();
+    }
+
+    private void OpenCreate()
+    {
+        editing = null;
+        showEditor = true;
+    }
+
+    private void OpenEdit(TransactionDto transaction)
+    {
+        editing = transaction;
+        showEditor = true;
+    }
+
+    private void CloseEditor()
+    {
+        showEditor = false;
+        editing = null;
+    }
+
+    private async Task OnSavedAsync()
+    {
+        CloseEditor();
+        // A category may have been created from the editor.
+        categories = await Categories.GetAllAsync(await CurrentUser.GetIdAsync());
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(string id)
+    {
+        try
+        {
+            await Transactions.DeleteAsync(await CurrentUser.GetIdAsync(), id);
+            await LoadAsync();
+        }
+        catch (NotFoundException ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private decimal TotalOf(TransactionType type) =>
+        transactions?.Where(t => t.Type == type).Sum(t => t.Amount) ?? 0;
+}

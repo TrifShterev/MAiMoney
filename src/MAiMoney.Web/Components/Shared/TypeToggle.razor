@@ -1,0 +1,21 @@
+<div class="type-toggle" role="group" aria-label="Type">
+    <button type="button" class="btn @(Value == TransactionType.Expense ? "btn-danger" : "btn-outline-danger")"
+            aria-pressed="@(Value == TransactionType.Expense)" @onclick="() => SelectAsync(TransactionType.Expense)">
+        Expense
+    </button>
+    <button type="button" class="btn @(Value == TransactionType.Income ? "btn-success" : "btn-outline-success")"
+            aria-pressed="@(Value == TransactionType.Income)" @onclick="() => SelectAsync(TransactionType.Income)">
+        Income
+    </button>
+</div>
+
+@code {
+    [Parameter]
+    public TransactionType Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TransactionType> ValueChanged { get; set; }
+
+    private Task SelectAsync(TransactionType type) =>
+        type == Value ? Task.CompletedTask : ValueChanged.InvokeAsync(type);
+}

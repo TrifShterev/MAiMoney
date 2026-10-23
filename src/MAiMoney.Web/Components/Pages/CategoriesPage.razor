@@ -1,0 +1,153 @@
+@page "/categories"
+@attribute [Authorize]
+@inject ICategoryService Categories
+@inject CurrentUser CurrentUser
+@inject MoneyFormatter Money
+
+<PageTitle>Categories · MAiMoney</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="h3 mb-0">Categories</h1>
+        <p class="text-muted mb-0">Group your transactions and set monthly budgets</p>
+    </div>
+    <div class="page-actions">
+        <button type="button" class="btn btn-primary" @onclick="() => OpenCreate(TransactionType.Expense)">+ New category</button>
+    </div>
+</div>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger py-2" role="alert">@error</div>
+}
+
+@if (categories is null)
+{
+    <p class="text-muted">Loading…</p>
+}
+else
+{
+    <div class="row g-4">
+        @foreach (var type in new[] { TransactionType.Expense, TransactionType.Income })
+        {
+            var items = categories.Where(c => c.Type == type).ToList();
+            <div class="col-md-6">
+                <section class="panel">
+                    <div class="d-flex justify-content-between align-items-baseline">
+                        <h2 class="panel-title">
+                            @(type == TransactionType.Expense ? "Expenses" : "Income")
+                            <span class="badge rounded-pill text-bg-light fw-normal">@items.Count</span>
+                        </h2>
+                        <button type="button" class="btn btn-sm btn-link" @onclick="() => OpenCreate(type)">+ Add</button>
+                    </div>
+
+                    @if (items.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No @(type == TransactionType.Expense ? "expense" : "income") categories yet.</p>
+                    }
+                    <ul class="list-unstyled mb-0">
+                        @foreach (var category in items)
+                        {
+                            <li class="category-item">
+                                <span class="category-swatch" style="background-color: @(category.Color ?? "#adb5bd")"></span>
+                                <div class="flex-grow-1 min-w-0">
+                                    <div class="fw-semibold">@category.Name</div>
+                                    @if (category.Description is not null)
+                                    {
+                                        <div class="small text-muted">@category.Description</div>
+                                    }
+                                    @if (category.MonthlyBudget is { } budget)
+                                    {
+                                        <div class="small">Budget: @Money.Format(budget) / month</div>
+                                    }
+                                </div>
+                                <div class="category-actions">
+                                    @if (confirmDeleteId == category.Id)
+                                    {
+                                        <span class="small me-1">Delete?</span>
+                                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(category.Id)">Yes</button>
+                                        <button type="button" class="btn btn-sm btn-link text-secondary" @onclick="() => confirmDeleteId = null">No</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEdit(category)">Edit</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => AskDelete(category.Id)">Delete</button>
+                                    }
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            </div>
+        }
+    </div>
+}
+
+@if (showEditor)
+{
+    <CategoryEditor Category="editing" DefaultType="newType" OnSaved="OnSavedAsync" OnCancel="CloseEditor" />
+}
+
+@code {
+    private IReadOnlyList<CategoryDto>? categories;
+    private string? confirmDeleteId;
+    private string? error;
+    private bool showEditor;
+    private CategoryDto? editing;
+    private TransactionType newType = TransactionType.Expense;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        confirmDeleteId = null;
+        categories = await Categories.GetAllAsync(await CurrentUser.GetIdAsync());
+    }
+
+    private void OpenCreate(TransactionType type)
+    {
+        editing = null;
+        newType = type;
+        error = null;
+        showEditor = true;
+    }
+
+    private void OpenEdit(CategoryDto category)
+    {
+        editing = category;
+        error = null;
+        showEditor = true;
+    }
+
+    private void CloseEditor()
+    {
+        showEditor = false;
+        editing = null;
+    }
+
+    private async Task OnSavedAsync()
+    {
+        CloseEditor();
+        await LoadAsync();
+    }
+
+    private void AskDelete(string id)
+    {
+        error = null;
+        confirmDeleteId = id;
+    }
+
+    private async Task DeleteAsync(string id)
+    {
+        try
+        {
+            await Categories.DeleteAsync(await CurrentUser.GetIdAsync(), id);
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is ServiceValidationException or NotFoundException)
+        {
+            confirmDeleteId = null;
+            error = ex.Message;
+        }
+    }
+}

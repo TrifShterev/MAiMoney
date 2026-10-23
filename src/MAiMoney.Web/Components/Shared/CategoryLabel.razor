@@ -1,0 +1,12 @@
+<span class="category-label">
+    <span class="category-dot" style="background-color: @(Color ?? "#adb5bd")"></span>
+    @Name
+</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Color { get; set; }
+}

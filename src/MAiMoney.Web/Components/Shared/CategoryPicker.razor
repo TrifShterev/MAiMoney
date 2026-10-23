@@ -1,0 +1,182 @@
+@* Category dropdown with an inline "+ New" form, so a missing category can be created without leaving the transaction form. *@
+@inject ICategoryService Categories
+@inject CurrentUser CurrentUser
+
+<div class="input-group">
+    <select id="@Id" class="form-select @CssClass" value="@(Value ?? string.Empty)" @onchange="OnSelectedAsync"
+            disabled="@(categories is null)">
+        <option value="">@(categories is null ? "Loading…" : "Select a category")</option>
+        @foreach (var category in Options)
+        {
+            <option value="@category.Id">@category.Name</option>
+        }
+    </select>
+    <button type="button" class="btn btn-outline-primary" @onclick="StartCreating" disabled="@creating"
+            title="Create a new @TypeName category">
+        + New
+    </button>
+</div>
+
+@if (!creating && Selected?.Description is { } description)
+{
+    <div class="form-text">@description</div>
+}
+
+@if (creating)
+{
+    <div class="quick-category" data-no-submit-on-enter>
+        <div class="quick-category-title">New @TypeName category</div>
+        <div class="d-flex gap-2">
+            <input type="color" class="form-control form-control-color flex-shrink-0" @bind="newColor"
+                   title="Pick a color" aria-label="Category color" />
+            <input @ref="nameInput" class="form-control" placeholder="Name, e.g. Groceries" maxlength="50"
+                   aria-label="Category name" @bind="newName" @bind:event="oninput" @onkeydown="OnKeyDownAsync" />
+        </div>
+        <input class="form-control mt-2" placeholder="Description (optional)" maxlength="200"
+               aria-label="Category description" @bind="newDescription" @bind:event="oninput" @onkeydown="OnKeyDownAsync" />
+        @if (createError is not null)
+        {
+            <div class="text-danger small mt-2" role="alert">@createError</div>
+        }
+        <div class="d-flex justify-content-end gap-2 mt-2">
+            <button type="button" class="btn btn-sm btn-link text-secondary" @onclick="StopCreating">Cancel</button>
+            <button type="button" class="btn btn-sm btn-primary" @onclick="CreateAsync"
+                    disabled="@(saving || string.IsNullOrWhiteSpace(newName))">
+                @(saving ? "Adding…" : "Add category")
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly string[] Palette =
+        ["#ef6c00", "#1e88e5", "#43a047", "#8e24aa", "#d81b60", "#00897b", "#6d4c41", "#5e35b1", "#f9a825"];
+
+    [CascadingParameter]
+    private EditContext? EditContext { get; set; }
+
+    /// <summary>Only categories of this type are offered, and new ones get this type.</summary>
+    [Parameter]
+    public TransactionType Type { get; set; }
+
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter]
+    public Expression<Func<string?>>? ValueExpression { get; set; }
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    private List<CategoryDto>? categories;
+    private bool creating;
+    private bool saving;
+    private bool focusName;
+    private string newName = string.Empty;
+    private string newDescription = string.Empty;
+    private string newColor = Palette[0];
+    private string? createError;
+    private ElementReference nameInput;
+
+    private IEnumerable<CategoryDto> Options => categories?.Where(c => c.Type == Type) ?? [];
+
+    private CategoryDto? Selected => categories?.FirstOrDefault(c => c.Id == Value);
+
+    private string TypeName => Type == TransactionType.Income ? "income" : "expense";
+
+    private string CssClass =>
+        EditContext is not null && ValueExpression is not null ? EditContext.FieldCssClass(ValueExpression) : string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var userId = await CurrentUser.GetIdAsync();
+        categories = (await Categories.GetAllAsync(userId)).ToList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (focusName)
+        {
+            focusName = false;
+            await nameInput.FocusAsync();
+        }
+    }
+
+    private Task OnSelectedAsync(ChangeEventArgs e) => SetValueAsync(e.Value as string);
+
+    private async Task SetValueAsync(string? value)
+    {
+        await ValueChanged.InvokeAsync(string.IsNullOrEmpty(value) ? null : value);
+        if (EditContext is not null && ValueExpression is not null)
+        {
+            EditContext.NotifyFieldChanged(FieldIdentifier.Create(ValueExpression));
+        }
+    }
+
+    private void StartCreating()
+    {
+        creating = true;
+        focusName = true;
+        createError = null;
+        newName = string.Empty;
+        newDescription = string.Empty;
+        newColor = Palette[(categories?.Count ?? 0) % Palette.Length];
+    }
+
+    private void StopCreating()
+    {
+        creating = false;
+        createError = null;
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CreateAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            StopCreating();
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (saving || string.IsNullOrWhiteSpace(newName))
+        {
+            return;
+        }
+
+        saving = true;
+        createError = null;
+        try
+        {
+            var userId = await CurrentUser.GetIdAsync();
+            var created = await Categories.CreateAsync(userId, new CategoryInput
+            {
+                Name = newName,
+                Description = newDescription,
+                Type = Type,
+                Color = newColor
+            });
+
+            categories ??= [];
+            categories.Add(created);
+            categories.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            creating = false;
+            await SetValueAsync(created.Id);
+        }
+        catch (ServiceValidationException ex)
+        {
+            createError = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+}

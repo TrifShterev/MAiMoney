@@ -1,0 +1,172 @@
+﻿@page "/"
+@attribute [Authorize]
+@inject ITransactionService Transactions
+@inject CurrentUser CurrentUser
+@inject MoneyFormatter Money
+
+<PageTitle>Dashboard · MAiMoney</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="h3 mb-0">Dashboard</h1>
+        <p class="text-muted mb-0">Your money at a glance</p>
+    </div>
+    <div class="page-actions">
+        <MonthPicker Value="month" ValueChanged="ChangeMonthAsync" />
+        <button type="button" class="btn btn-primary" @onclick="() => showEditor = true">+ Add transaction</button>
+    </div>
+</div>
+
+@if (summary is null)
+{
+    <p class="text-muted">Loading…</p>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-sm-4">
+            <div class="stat-card">
+                <div class="stat-label">Income</div>
+                <div class="stat-value text-success">@Money.Format(summary.TotalIncome)</div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="stat-card">
+                <div class="stat-label">Expenses</div>
+                <div class="stat-value text-danger">@Money.Format(summary.TotalExpenses)</div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="stat-card">
+                <div class="stat-label">Balance</div>
+                <div class="stat-value @(summary.Balance < 0 ? "text-danger" : "")">@Money.Format(summary.Balance)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <section class="panel">
+                <h2 class="panel-title">Spending by category</h2>
+                @if (expenseCategories.Count == 0)
+                {
+                    <p class="text-muted mb-0">No expenses this month yet.</p>
+                }
+                @foreach (var category in expenseCategories)
+                {
+                    <div class="budget-row">
+                        <div class="d-flex justify-content-between gap-2">
+                            <CategoryLabel Name="@category.Name" Color="@category.Color" />
+                            <span class="fw-semibold text-nowrap">
+                                @Money.Format(category.Total)
+                                @if (category.MonthlyBudget is { } budget)
+                                {
+                                    <span class="text-muted fw-normal"> / @Money.Format(budget)</span>
+                                }
+                            </span>
+                        </div>
+                        @if (category.MonthlyBudget is { } limit)
+                        {
+                            var percent = category.BudgetUsedPercent ?? (category.Total > 0 ? 100 : 0);
+                            <div class="progress mt-2" role="progressbar" aria-label="@category.Name budget used"
+                                 aria-valuenow="@Pct(percent)" aria-valuemin="0" aria-valuemax="100">
+                                <div class="progress-bar @BarClass(category, percent)" style="width: @Pct(Math.Min(percent, 100))%"></div>
+                            </div>
+                            <div class="small mt-1 @(category.IsOverBudget ? "text-danger" : "text-muted")">
+                                @(category.IsOverBudget
+                                    ? $"Over budget by {Money.Format(category.Total - limit)}"
+                                    : $"{Money.Format(limit - category.Total)} left")
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+
+            @if (incomeCategories.Count > 0)
+            {
+                <section class="panel mt-4">
+                    <h2 class="panel-title">Income by category</h2>
+                    @foreach (var category in incomeCategories)
+                    {
+                        <div class="d-flex justify-content-between gap-2 py-1">
+                            <CategoryLabel Name="@category.Name" Color="@category.Color" />
+                            <span class="fw-semibold text-success text-nowrap">@Money.Format(category.Total)</span>
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+
+        <div class="col-lg-5">
+            <section class="panel">
+                <div class="d-flex justify-content-between align-items-baseline">
+                    <h2 class="panel-title">Recent transactions</h2>
+                    <a href="transactions" class="small">See all</a>
+                </div>
+                @if (recent.Count == 0)
+                {
+                    <p class="text-muted mb-0">Nothing recorded in @month.ToString("MMMM", CultureInfo.InvariantCulture) yet.</p>
+                }
+                <ul class="list-unstyled mb-0">
+                    @foreach (var t in recent)
+                    {
+                        <li class="recent-item">
+                            <div class="min-w-0">
+                                <CategoryLabel Name="@t.CategoryName" Color="@t.CategoryColor" />
+                                <div class="small text-muted text-truncate">
+                                    @t.Date.ToString("dd MMM", CultureInfo.InvariantCulture)@(t.Description is null ? "" : $" · {t.Description}")
+                                </div>
+                            </div>
+                            <span class="fw-semibold text-nowrap @AmountClass(t.Type)">@Money.FormatSigned(t.Amount, t.Type)</span>
+                        </li>
+                    }
+                </ul>
+            </section>
+        </div>
+    </div>
+}
+
+@if (showEditor)
+{
+    <TransactionEditor OnSaved="OnSavedAsync" OnCancel="() => showEditor = false" />
+}
+
+@code {
+    private DateOnly month = MonthPicker.ThisMonth;
+    private MonthlySummary? summary;
+    private List<CategorySummary> expenseCategories = [];
+    private List<CategorySummary> incomeCategories = [];
+    private IReadOnlyList<TransactionDto> recent = [];
+    private bool showEditor;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var userId = await CurrentUser.GetIdAsync();
+        summary = await Transactions.GetMonthlySummaryAsync(userId, month.Year, month.Month);
+        expenseCategories = summary.Categories.Where(c => c.Type == TransactionType.Expense).ToList();
+        incomeCategories = summary.Categories.Where(c => c.Type == TransactionType.Income && c.Total > 0).ToList();
+        recent = await Transactions.GetAsync(userId, new TransactionFilter { Year = month.Year, Month = month.Month, Limit = 5 });
+    }
+
+    private Task ChangeMonthAsync(DateOnly value)
+    {
+        month = value;
+        return LoadAsync();
+    }
+
+    private async Task OnSavedAsync()
+    {
+        showEditor = false;
+        await LoadAsync();
+    }
+
+    private static string Pct(decimal value) => value.ToString("0.#", CultureInfo.InvariantCulture);
+
+    private static string BarClass(CategorySummary category, decimal percent) =>
+        category.IsOverBudget ? "bg-danger" : percent >= 80 ? "bg-warning" : "bg-success";
+
+    private static string AmountClass(TransactionType type) =>
+        type == TransactionType.Income ? "text-success" : "text-danger";
+}

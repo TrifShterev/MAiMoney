@@ -1,0 +1,40 @@
+name: maimoney
+
+services:
+  mongo:
+    image: mongo:8
+    container_name: maimoney-mongo
+    restart: unless-stopped
+    ports:
+      # Only reachable from this machine; the database has no password.
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: src/MAiMoney.Web/Dockerfile
+    container_name: maimoney-web
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      MongoDb__ConnectionString: mongodb://mongo:27017
+      DataProtection__KeysPath: /keys
+    volumes:
+      - dp-keys:/keys
+
+volumes:
+  mongo-data:
+  dp-keys:

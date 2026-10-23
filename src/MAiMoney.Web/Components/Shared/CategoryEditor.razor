@@ -1,0 +1,137 @@
+@* Modal for adding or editing a category. Render it with @if; it closes through OnSaved or OnCancel. *@
+@inject ICategoryService Categories
+@inject CurrentUser CurrentUser
+@inject MoneyFormatter Money
+
+<Modal Title="@Title">
+    <EditForm Model="input" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+
+        <div class="modal-header">
+            <h2 class="modal-title h5">@Title</h2>
+            <button type="button" class="btn-close" aria-label="Close" @onclick="OnCancel"></button>
+        </div>
+
+        <div class="modal-body">
+            @if (error is not null)
+            {
+                <div class="alert alert-danger py-2" role="alert">@error</div>
+            }
+
+            <TypeToggle Value="input.Type" ValueChanged="SetType" />
+
+            <div class="row g-3 mt-1">
+                <div class="col-12">
+                    <label for="cat-name" class="form-label">Name</label>
+                    <div class="d-flex gap-2">
+                        <InputText type="color" class="form-control form-control-color flex-shrink-0"
+                                   @bind-Value="input.Color" title="Pick a color" aria-label="Category color" />
+                        <InputText id="cat-name" class="form-control" @bind-Value="input.Name" maxlength="50"
+                                   placeholder="e.g. Groceries" autofocus />
+                    </div>
+                    <ValidationMessage For="() => input.Name" />
+                </div>
+                <div class="col-12">
+                    <label for="cat-description" class="form-label">
+                        Description <span class="text-muted fw-normal">(optional)</span>
+                    </label>
+                    <InputTextArea id="cat-description" class="form-control" rows="2" @bind-Value="input.Description"
+                                   maxlength="200" placeholder="What belongs in this category?" />
+                    <ValidationMessage For="() => input.Description" />
+                </div>
+                @if (input.Type == TransactionType.Expense)
+                {
+                    <div class="col-sm-7">
+                        <label for="cat-budget" class="form-label">
+                            Monthly budget <span class="text-muted fw-normal">(optional)</span>
+                        </label>
+                        <div class="input-group">
+                            <InputNumber id="cat-budget" class="form-control" @bind-Value="input.MonthlyBudget"
+                                         step="0.01" min="0" placeholder="No budget" />
+                            <span class="input-group-text">@Money.Currency</span>
+                        </div>
+                        <ValidationMessage For="() => input.MonthlyBudget" />
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-link text-secondary" @onclick="OnCancel">Cancel</button>
+            <button type="submit" class="btn btn-primary" disabled="@saving">@(saving ? "Saving…" : "Save")</button>
+        </div>
+    </EditForm>
+</Modal>
+
+@code {
+    /// <summary>The category to edit; null to add a new one.</summary>
+    [Parameter]
+    public CategoryDto? Category { get; set; }
+
+    /// <summary>Type preselected for a new category.</summary>
+    [Parameter]
+    public TransactionType DefaultType { get; set; } = TransactionType.Expense;
+
+    [Parameter]
+    public EventCallback OnSaved { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private CategoryInput input = new();
+    private bool saving;
+    private string? error;
+
+    private string Title => Category is null ? "New category" : "Edit category";
+
+    protected override void OnInitialized()
+    {
+        input = Category is { } c
+            ? new CategoryInput
+            {
+                Name = c.Name,
+                Description = c.Description,
+                Type = c.Type,
+                Color = c.Color ?? "#6c757d",
+                MonthlyBudget = c.MonthlyBudget
+            }
+            : new CategoryInput { Type = DefaultType, Color = "#1e88e5" };
+    }
+
+    private void SetType(TransactionType type)
+    {
+        input.Type = type;
+        if (type == TransactionType.Income)
+        {
+            input.MonthlyBudget = null;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        saving = true;
+        error = null;
+        try
+        {
+            var userId = await CurrentUser.GetIdAsync();
+            if (Category is null)
+            {
+                await Categories.CreateAsync(userId, input);
+            }
+            else
+            {
+                await Categories.UpdateAsync(userId, Category.Id, input);
+            }
+
+            await OnSaved.InvokeAsync();
+        }
+        catch (Exception ex) when (ex is ServiceValidationException or NotFoundException)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+}
