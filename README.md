@@ -1,5 +1,7 @@
 # MAiMoney
 
+[![CI](https://github.com/TrifShterev/MAiMoney/actions/workflows/ci.yml/badge.svg)](https://github.com/TrifShterev/MAiMoney/actions/workflows/ci.yml)
+
 A simple personal finance tracker. Record income and expenses, organize them in categories, and keep an eye on monthly budgets.
 
 Built with ASP.NET Core 10, Blazor (Interactive Server) and MongoDB.
@@ -27,10 +29,9 @@ Open http://localhost:5166.
 
 ### Tests
 
-The service tests are integration tests against a real MongoDB. Each run uses a throw-away database. Set `MAIMONEY_TEST_MONGO` to point them at another server.
+The service tests are integration tests against a real MongoDB. They start their own throw-away server with [EphemeralMongo](https://github.com/asimmon/ephemeral-mongo), so Docker isn't needed. The `mongod` binaries are downloaded on the first run. To use binaries you already have (offline or behind a proxy), set `MAIMONEY_TEST_MONGO_BIN` to the folder that holds `mongod`.
 
 ```bash
-docker compose up -d mongo
 dotnet test
 ```
 
