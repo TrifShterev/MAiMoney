@@ -461,6 +461,11 @@ kbd {
             box-shadow: var(--mm-shadow-sm);
         }
 
+.export-caret {
+    opacity: 0.75;
+    margin-left: -0.1rem;
+}
+
 .app-menu-scrim {
     position: fixed;
     inset: 0;
@@ -1523,8 +1528,16 @@ kbd {
         max-width: none;
     }
 
-    .page-actions, .page-actions > .btn, .month-picker {
+    .page-actions, .page-actions > .btn, .month-picker, .export-menu, .export-btn {
         width: 100%;
+    }
+
+    /* The header menus pin to the top on phones; this one opens under its own button. */
+    .export-menu .app-dropdown {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        left: 0;
+        right: 0;
     }
 
     .month-picker-label {

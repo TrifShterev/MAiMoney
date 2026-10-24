@@ -2,6 +2,7 @@ using MAiMoney.Services.Data;
 using MAiMoney.Services.Entities;
 using MAiMoney.Services.Options;
 using MAiMoney.Services.Services;
+using MAiMoney.Services.Services.Export;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +30,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<ITransactionService, TransactionService>();
+
+        // One exporter per format; the export endpoint resolves them by key.
+        services.AddKeyedScoped<ITransactionExporter, CsvTransactionExporter>(CsvTransactionExporter.Key);
+        services.AddKeyedScoped<ITransactionExporter, ExcelTransactionExporter>(ExcelTransactionExporter.Key);
+        services.AddKeyedScoped<ITransactionExporter, PdfTransactionExporter>(PdfTransactionExporter.Key);
 
         return services;
     }

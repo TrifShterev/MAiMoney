@@ -1,5 +1,6 @@
 using MAiMoney.Services.Models;
 using MAiMoney.Services.Services;
+using MAiMoney.Services.Services.Export;
 using MAiMoney.Web.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,6 +23,22 @@ public class TransactionsController(ITransactionService transactions) : Controll
     [HttpGet("daily")]
     public Task<IReadOnlyList<DailyTotal>> GetDaily([FromQuery] int year, [FromQuery] int month, CancellationToken cancellationToken) =>
         transactions.GetDailyTotalsAsync(User.GetUserId(), year, month, cancellationToken);
+
+    /// <summary>Downloads every transaction of the month; <paramref name="format"/> is an exporter key (csv, excel, pdf).</summary>
+    [HttpGet("export/{format}")]
+    public async Task<IActionResult> Export(
+        string format, [FromQuery] int year, [FromQuery] int month, CancellationToken cancellationToken)
+    {
+        // The key comes from the URL, so the exporter can't be injected with [FromKeyedServices].
+        var exporter = HttpContext.RequestServices.GetKeyedService<ITransactionExporter>(format.ToLowerInvariant());
+        if (exporter is null)
+        {
+            return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Unknown export format.");
+        }
+
+        var file = await exporter.ExportAsync(User.GetUserId(), year, month, cancellationToken);
+        return File(file.Content, file.ContentType, file.FileName);
+    }
 
     [HttpGet("{id}")]
     public Task<TransactionDto> Get(string id, CancellationToken cancellationToken) =>

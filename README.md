@@ -51,6 +51,10 @@ Local test account used during development (only in your local database): `demo@
 
 There is no repository layer. Services work with `IMongoCollection<T>` directly through `MongoDbContext`.
 
+### Export
+
+The Dashboard and the Transactions page have an **Export** menu that downloads every transaction of the selected month as CSV, Excel or PDF. Each format is an `ITransactionExporter` (`Services/Export`) registered as a keyed service under its key (`csv`, `excel`, `pdf`); the export endpoint resolves the exporter by that key. Excel files are written with [ClosedXML](https://github.com/ClosedXML/ClosedXML) and PDFs with [QuestPDF](https://www.questpdf.com/) under its Community license (free for individuals and organizations below USD 1M annual revenue).
+
 ### Entities
 
 - **Category**:
@@ -80,6 +84,7 @@ All endpoints require the sign-in cookie. Without it they return `401`. Errors a
 | GET | `/api/transactions?year=2026&month=10&type=&categoryId=&limit=` | List, newest first |
 | GET | `/api/transactions/summary?year=2026&month=10` | Monthly totals and budget usage |
 | GET | `/api/transactions/daily?year=2026&month=10` | Income and expense totals for every day of the month |
+| GET | `/api/transactions/export/{csv\|excel\|pdf}?year=2026&month=10` | Download every transaction of the month as a file |
 | GET/PUT/DELETE | `/api/transactions/{id}` | Read, update, delete |
 | POST | `/api/transactions` | Create |
 
