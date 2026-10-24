@@ -35,11 +35,15 @@ public sealed class MongoFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        runner = await MongoRunner.RunAsync(new MongoRunnerOptions
+        var options = new MongoRunnerOptions { AdditionalArguments = ["--quiet"] };
+        var binaryDirectory = Environment.GetEnvironmentVariable("MAIMONEY_TEST_MONGO_BIN");
+        if (!string.IsNullOrWhiteSpace(binaryDirectory))
         {
-            BinaryDirectory = Environment.GetEnvironmentVariable("MAIMONEY_TEST_MONGO_BIN"),
-            AdditionalArguments = ["--quiet"]
-        });
+            // Only set when given: EphemeralMongo rejects a null directory instead of downloading.
+            options.BinaryDirectory = binaryDirectory;
+        }
+
+        runner = await MongoRunner.RunAsync(options);
 
         Db = new MongoDbContext(MsOptions.Create(new MongoDbOptions
         {
