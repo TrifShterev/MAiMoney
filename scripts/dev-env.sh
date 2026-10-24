@@ -9,6 +9,7 @@
 #   app            rebuild and restart the web app in the background
 #   stop           stop the app and the MongoDB this script started
 #   status         show what is running
+#   test           run the tests with the NuGet mongod (MAIMONEY_TEST_MONGO_BIN)
 #   session-start  SessionStart hook entry point; does nothing outside cloud sessions
 #
 # MongoDB is taken from the first source that works:
@@ -17,6 +18,9 @@
 #   3. the mongod binary shipped in the EphemeralMongo NuGet runtime package. It comes from
 #      api.nuget.org, which cloud sessions can reach; fastdl.mongodb.org usually isn't allowed.
 # Force one with MAIMONEY_MONGO=docker or MAIMONEY_MONGO=nuget.
+#
+# The tests start their own mongod with EphemeralMongo, which downloads it from fastdl.mongodb.org.
+# In cloud sessions the same NuGet mongod is handed to them through MAIMONEY_TEST_MONGO_BIN.
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -153,7 +157,7 @@ with zipfile.ZipFile(sys.argv[1]) as z, z.open(sys.argv[2]) as src, open(sys.arg
   fi
 }
 
-mongo_nuget() {
+fetch_nuget_mongod() {
   local mongod="$NUGET_MONGO_DIR/mongod"
   if [ ! -x "$mongod" ]; then
     log "Downloading mongod from NuGet ($NUGET_MONGO_PACKAGE $NUGET_MONGO_VERSION, ~77 MB)..."
@@ -169,7 +173,11 @@ mongo_nuget() {
     rm -f "$package"
     chmod +x "$mongod.part" && mv "$mongod.part" "$mongod"
   fi
+}
 
+mongo_nuget() {
+  fetch_nuget_mongod || return 1
+  local mongod="$NUGET_MONGO_DIR/mongod"
   log "Starting mongod from $mongod..."
   mkdir -p "$STATE/mongo-data"
   if ! "$mongod" --dbpath "$STATE/mongo-data" --port "$MONGO_PORT" --bind_ip 127.0.0.1 \
@@ -269,11 +277,22 @@ up() {
   app_responding || start_app || return 1
 }
 
+run_tests() {
+  ensure_sdk || return 1
+  if [ -z "${MAIMONEY_TEST_MONGO_BIN:-}" ]; then
+    fetch_nuget_mongod || return 1
+    export MAIMONEY_TEST_MONGO_BIN="$NUGET_MONGO_DIR"
+  fi
+  dotnet test "$ROOT/MAiMoney.slnx" "$@"
+}
+
 session_start() {
   up
   local result=$?
+  local test_mongo_bin=""
+  fetch_nuget_mongod && test_mongo_bin="$NUGET_MONGO_DIR"
 
-  # Later Bash tool calls in this session need the same SDK settings.
+  # Later Bash tool calls in this session need the same settings.
   if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
     if [ -x "$DOTNET_LOCAL/dotnet" ]; then
       echo "export PATH=\"$DOTNET_LOCAL:\$PATH\" DOTNET_ROOT=\"$DOTNET_LOCAL\"" >>"$CLAUDE_ENV_FILE"
@@ -281,10 +300,18 @@ session_start() {
     if [ -n "${DOTNET_SYSTEM_GLOBALIZATION_INVARIANT:-}" ]; then
       echo "export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1" >>"$CLAUDE_ENV_FILE"
     fi
+    if [ -n "$test_mongo_bin" ]; then
+      echo "export MAIMONEY_TEST_MONGO_BIN=\"$test_mongo_bin\"" >>"$CLAUDE_ENV_FILE"
+    fi
   fi
 
   echo "MAiMoney dev environment (scripts/dev-env.sh, see CLAUDE.md):"
   status
+  if [ -n "$test_mongo_bin" ]; then
+    echo "tests:   dotnet test (MAIMONEY_TEST_MONGO_BIN=$test_mongo_bin)"
+  else
+    echo "tests:   no local mongod for EphemeralMongo; dotnet test will try to download one"
+  fi
   [ $result -eq 0 ] || echo "Setup failed; see the [dev-env] messages above and the logs in .dev-env/."
   # Never block the session; Claude can fix the environment from here.
   return 0
@@ -297,9 +324,10 @@ case "${1:-up}" in
   app) ensure_sdk && ensure_db && start_app ;;
   stop) stop_app; stop_db ;;
   status) status ;;
+  test) shift; run_tests "$@" ;;
   session-start) session_start ;;
   *)
-    sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 2
     ;;
 esac
