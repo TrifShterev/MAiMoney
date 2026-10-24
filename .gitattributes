@@ -1,0 +1,2 @@
+# Shell scripts run on Linux (cloud sessions, WSL, containers) and break with CRLF.
+*.sh text eol=lf

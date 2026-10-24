@@ -27,6 +27,10 @@ dotnet run --project src/MAiMoney.Web --launch-profile http
 
 Open http://localhost:5166.
 
+### Linux and Claude Code cloud sessions
+
+`scripts/dev-env.sh up` installs the .NET 10 SDK if needed, starts MongoDB (existing server, Docker, or a `mongod` downloaded from NuGet) and runs the app in the background on http://localhost:5166. Cloud sessions run it automatically through the SessionStart hook in `.claude/settings.json`. See [CLAUDE.md](CLAUDE.md) for the details and the optional cloud environment setup script (`scripts/cloud-setup.sh`).
+
 ### Tests
 
 The service tests are integration tests against a real MongoDB. They start their own throw-away server with [EphemeralMongo](https://github.com/asimmon/ephemeral-mongo), so Docker isn't needed. The `mongod` binaries are downloaded on the first run. To use binaries you already have (offline or behind a proxy), set `MAIMONEY_TEST_MONGO_BIN` to the folder that holds `mongod`.
