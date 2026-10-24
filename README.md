@@ -1,5 +1,7 @@
 # MAiMoney
 
+[![CI](https://github.com/TrifShterev/MAiMoney/actions/workflows/ci.yml/badge.svg)](https://github.com/TrifShterev/MAiMoney/actions/workflows/ci.yml)
+
 A simple personal finance tracker. Record income and expenses, organize them in categories, and keep an eye on monthly budgets.
 
 Built with ASP.NET Core 10, Blazor (Interactive Server) and MongoDB.
