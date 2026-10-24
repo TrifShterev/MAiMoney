@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Local dev environment state (logs, pids, MongoDB data) from scripts/dev-env.sh
+.dev-env/
