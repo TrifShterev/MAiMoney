@@ -1,0 +1,215 @@
+@inject MoneyFormatter Money
+
+@* Income and expenses through one month, as bars per day or as running-total lines. *@
+<div class="panel-header">
+    <h2 class="panel-title">
+        Daily activity
+        <span class="panel-meta fw-normal">@(mode == ChartMode.Bar ? "Per day" : "Running total")</span>
+    </h2>
+    <div class="chart-toggle" role="group" aria-label="Chart type">
+        @foreach (var option in new[] { ChartMode.Bar, ChartMode.Line })
+        {
+            <button type="button" class="chart-toggle-btn @(mode == option ? "active" : null)"
+                    aria-pressed="@(mode == option)" @onclick="() => SetMode(option)">
+                <Icon Name="@(option == ChartMode.Bar ? "bar-chart" : "line-chart")" Size="16" />@option
+            </button>
+        }
+    </div>
+</div>
+
+<div class="trend-chart">
+    <svg viewBox="0 0 @Width @Height" role="img" aria-label="@AriaLabel" @onmouseleave="() => hovered = null">
+        @foreach (var tick in ticks)
+        {
+            var y = Y(tick);
+            <g>
+                <line class="chart-grid" x1="@PadLeft" x2="@(Width - PadRight)" y1="@N(y)" y2="@N(y)" />
+                <text class="chart-axis" x="@(PadLeft - 8)" y="@N(y)" text-anchor="end" dominant-baseline="middle">@Compact(tick)</text>
+            </g>
+        }
+
+        <g>
+            @foreach (var day in Days.Where(d => d.Date.Day is 1 or 5 or 10 or 15 or 20 or 25 || d.Date.Day == Days.Count))
+            {
+                <g><text class="chart-axis" x="@N(CenterX(day.Date.Day - 1))" y="@(Height - 6)" text-anchor="middle">@day.Date.Day</text></g>
+            }
+        </g>
+
+        @if (hovered is { } h)
+        {
+            <rect class="chart-hover-column" x="@N(PadLeft + h * ColumnWidth)" y="@PadTop" width="@N(ColumnWidth)" height="@PlotHeight" />
+        }
+
+        @if (mode == ChartMode.Bar)
+        {
+            var barWidth = Math.Max(ColumnWidth * 0.34, 1.5);
+            for (var i = 0; i < Days.Count; i++)
+            {
+                var day = Days[i];
+                var center = CenterX(i);
+                if (day.Income > 0)
+                {
+                    <rect class="chart-bar" fill="var(--mm-income)" x="@N(center - barWidth - 0.5)" y="@N(Y(day.Income))"
+                          width="@N(barWidth)" height="@N(BaseY - Y(day.Income))" />
+                }
+                if (day.Expenses > 0)
+                {
+                    <rect class="chart-bar" fill="var(--mm-expense)" x="@N(center + 0.5)" y="@N(Y(day.Expenses))"
+                          width="@N(barWidth)" height="@N(BaseY - Y(day.Expenses))" />
+                }
+            }
+        }
+        else
+        {
+            <polyline class="chart-line" stroke="var(--mm-income)" points="@LinePoints(t => t.Income)" />
+            <polyline class="chart-line" stroke="var(--mm-expense)" points="@LinePoints(t => t.Expenses)" />
+            @if (hovered is { } i && i < lineLength)
+            {
+                <circle class="chart-dot" cx="@N(CenterX(i))" cy="@N(Y(running[i].Income))" r="4" fill="var(--mm-income)" />
+                <circle class="chart-dot" cx="@N(CenterX(i))" cy="@N(Y(running[i].Expenses))" r="4" fill="var(--mm-expense)" />
+            }
+        }
+
+        <line class="chart-baseline" x1="@PadLeft" x2="@(Width - PadRight)" y1="@BaseY" y2="@BaseY" />
+
+        @for (var i = 0; i < Days.Count; i++)
+        {
+            var index = i;
+            <rect class="chart-hit" x="@N(PadLeft + i * ColumnWidth)" y="@PadTop" width="@N(ColumnWidth)" height="@PlotHeight"
+                  @onmouseenter="() => hovered = index" />
+        }
+    </svg>
+
+    @if (hovered is { } d)
+    {
+        var day = Days[d];
+        var left = CenterX(d) / Width * 100;
+        var showRunning = mode == ChartMode.Line && d < lineLength;
+        <div class="chart-tooltip trend-tooltip @(left > 60 ? "trend-tooltip-left" : null)" style="left: @N(left)%">
+            <div class="chart-tooltip-head">@day.Date.ToString("ddd, dd MMM", CultureInfo.InvariantCulture)</div>
+            @(TooltipRow("Income", "var(--mm-income)", day.Income, showRunning ? running[d].Income : null))
+            @(TooltipRow("Expenses", "var(--mm-expense)", day.Expenses, showRunning ? running[d].Expenses : null))
+        </div>
+    }
+</div>
+
+<div class="chart-legend">
+    <span class="chart-legend-item"><span class="category-dot" style="background-color: var(--mm-income)"></span>Income</span>
+    <span class="chart-legend-item"><span class="category-dot" style="background-color: var(--mm-expense)"></span>Expenses</span>
+</div>
+
+@code {
+    private const int Width = 480;
+    private const int Height = 220;
+    private const int PadLeft = 40;
+    private const int PadRight = 6;
+    private const int PadTop = 10;
+    private const int PadBottom = 26;
+    private const int PlotHeight = Height - PadTop - PadBottom;
+    private const int BaseY = Height - PadBottom;
+
+    /// <summary>One entry per day of the month, in date order.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DailyTotal> Days { get; set; } = [];
+
+    private ChartMode mode = ChartMode.Bar;
+    private int? hovered;
+    private List<(decimal Income, decimal Expenses)> running = [];
+    private List<decimal> ticks = [];
+
+    // The running-total lines stop at today (or the last day with activity, if later)
+    // instead of running flat to the end of the current month.
+    private int lineLength;
+
+    private double ColumnWidth => (double)(Width - PadLeft - PadRight) / Math.Max(Days.Count, 1);
+
+    private decimal Max => ticks.Count > 0 ? ticks[^1] : 1;
+
+    private string AriaLabel =>
+        $"Income {Money.Format(Days.Sum(d => d.Income))} and expenses {Money.Format(Days.Sum(d => d.Expenses))} by day";
+
+    protected override void OnParametersSet()
+    {
+        running = [];
+        var (income, expenses) = (0m, 0m);
+        foreach (var day in Days)
+        {
+            income += day.Income;
+            expenses += day.Expenses;
+            running.Add((income, expenses));
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var lastActive = Days.LastOrDefault(d => d.Income > 0 || d.Expenses > 0)?.Date ?? DateOnly.MinValue;
+        var end = today > lastActive ? today : lastActive;
+        lineLength = Days.Count(d => d.Date <= end);
+
+        UpdateTicks();
+        if (hovered >= Days.Count)
+        {
+            hovered = null;
+        }
+    }
+
+    private void SetMode(ChartMode value)
+    {
+        mode = value;
+        UpdateTicks();
+    }
+
+    // The scale depends on the mode: daily values or running totals.
+    private void UpdateTicks()
+    {
+        var max = mode == ChartMode.Bar
+            ? Days.Select(d => Math.Max(d.Income, d.Expenses)).DefaultIfEmpty(0).Max()
+            : running.Take(lineLength).Select(r => Math.Max(r.Income, r.Expenses)).DefaultIfEmpty(0).Max();
+        var step = NiceStep(max / 4);
+        var count = Math.Max(1, (int)Math.Ceiling(max / step));
+        ticks = Enumerable.Range(0, count + 1).Select(i => step * i).ToList();
+    }
+
+    /// <summary>Rounds up to 1, 2 or 5 times a power of ten, so the gridlines land on round amounts.</summary>
+    private static decimal NiceStep(decimal value)
+    {
+        if (value <= 0)
+        {
+            return 1;
+        }
+
+        var magnitude = (decimal)Math.Pow(10, Math.Floor(Math.Log10((double)value)));
+        var fraction = value / magnitude;
+        return magnitude * (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10);
+    }
+
+    private double Y(decimal value) => BaseY - (double)(value / Max) * PlotHeight;
+
+    private double CenterX(int index) => PadLeft + (index + 0.5) * ColumnWidth;
+
+    private string LinePoints(Func<(decimal Income, decimal Expenses), decimal> value) =>
+        string.Join(' ', running.Take(lineLength).Select((r, i) => $"{N(CenterX(i))},{N(Y(value(r)))}"));
+
+    private RenderFragment TooltipRow(string label, string color, decimal amount, decimal? runningTotal) =>
+        @<div class="chart-tooltip-row">
+            <span class="category-label"><span class="category-dot" style="background-color: @color"></span>@label</span>
+            <span class="chart-tooltip-amount">
+                @Money.Format(amount)
+                @if (runningTotal is { } total)
+                {
+                    <span class="d-block text-body-secondary">@Money.Format(total) so far</span>
+                }
+            </span>
+        </div>;
+
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string Compact(decimal value) =>
+        value >= 1000
+            ? (value / 1000).ToString("0.#", CultureInfo.InvariantCulture) + "k"
+            : value.ToString("0.#", CultureInfo.InvariantCulture);
+
+    private enum ChartMode
+    {
+        Bar,
+        Line
+    }
+}

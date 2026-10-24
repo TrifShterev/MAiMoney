@@ -338,6 +338,59 @@ public class TransactionServiceTests(MongoFixture fixture)
             () => fixture.Transactions.GetMonthlySummaryAsync(userId, year, month));
     }
 
+    [Fact]
+    public async Task DailyTotals_ReturnsEveryDayOfMonth_WithSumsPerType()
+    {
+        var userId = await fixture.NewUserAsync();
+        var food = await CategoryAsync(userId, "Food");
+        var rent = await CategoryAsync(userId, "Rent");
+        var salary = await CategoryAsync(userId, "Salary");
+
+        await AddAsync(userId, food, 12.5m, new DateOnly(2026, 6, 3));
+        await AddAsync(userId, rent, 700m, new DateOnly(2026, 6, 3));
+        await AddAsync(userId, salary, 3000m, new DateOnly(2026, 6, 30), TransactionType.Income);
+
+        var days = await fixture.Transactions.GetDailyTotalsAsync(userId, 2026, 6);
+
+        Assert.Equal(30, days.Count);
+        Assert.Equal(Enumerable.Range(1, 30).Select(d => new DateOnly(2026, 6, d)), days.Select(d => d.Date));
+        Assert.Equal(new DailyTotal(new DateOnly(2026, 6, 3), 0m, 712.5m), days[2]);
+        Assert.Equal(new DailyTotal(new DateOnly(2026, 6, 30), 3000m, 0m), days[29]);
+        Assert.All(days.Where(d => d.Date.Day is not (3 or 30)), d => Assert.Equal((0m, 0m), (d.Income, d.Expenses)));
+    }
+
+    [Fact]
+    public async Task DailyTotals_IgnoresOtherUsersAndOtherMonths()
+    {
+        var userId = await fixture.NewUserAsync();
+        var otherUserId = await fixture.NewUserAsync();
+        var food = await CategoryAsync(userId, "Food");
+
+        await AddAsync(userId, food, 20m, new DateOnly(2026, 2, 1));
+        await AddAsync(userId, food, 30m, new DateOnly(2026, 1, 31));
+        await AddAsync(userId, food, 40m, new DateOnly(2026, 3, 1));
+        await AddAsync(otherUserId, await CategoryAsync(otherUserId, "Food"), 500m, new DateOnly(2026, 2, 1));
+
+        var days = await fixture.Transactions.GetDailyTotalsAsync(userId, 2026, 2);
+
+        Assert.Equal(28, days.Count);
+        Assert.Equal(20m, days[0].Expenses);
+        Assert.Equal(20m, days.Sum(d => d.Expenses));
+        Assert.Equal(0m, days.Sum(d => d.Income));
+    }
+
+    [Theory]
+    [InlineData(2026, 0)]
+    [InlineData(2026, 13)]
+    [InlineData(1999, 12)]
+    public async Task DailyTotals_RejectsInvalidMonth(int year, int month)
+    {
+        var userId = await fixture.NewUserAsync();
+
+        await Assert.ThrowsAsync<ServiceValidationException>(
+            () => fixture.Transactions.GetDailyTotalsAsync(userId, year, month));
+    }
+
     private async Task<CategoryDto> CategoryAsync(string userId, string name) =>
         (await fixture.Categories.GetAllAsync(userId)).Single(c => c.Name == name);
 

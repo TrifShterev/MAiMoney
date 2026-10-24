@@ -137,6 +137,29 @@ public class TransactionService(MongoDbContext db) : ITransactionService
             summaries);
     }
 
+    public async Task<IReadOnlyList<DailyTotal>> GetDailyTotalsAsync(
+        string userId, int year, int month, CancellationToken cancellationToken = default)
+    {
+        var (from, to) = MonthRange(year, month);
+
+        // Dates are stored as midnight UTC, so grouping by the date groups by day.
+        var totals = await db.Transactions.Aggregate()
+            .Match(t => t.UserId == userId && t.Date >= from && t.Date < to)
+            .Group(
+                t => new { t.Date, t.Type },
+                g => new { g.Key.Date, g.Key.Type, Total = g.Sum(t => t.Amount) })
+            .ToListAsync(cancellationToken);
+
+        var totalsByDay = totals.ToDictionary(t => (DateOnly.FromDateTime(t.Date), t.Type), t => t.Total);
+        return Enumerable.Range(1, DateTime.DaysInMonth(year, month))
+            .Select(day => new DateOnly(year, month, day))
+            .Select(date => new DailyTotal(
+                date,
+                totalsByDay.GetValueOrDefault((date, TransactionType.Income)),
+                totalsByDay.GetValueOrDefault((date, TransactionType.Expense))))
+            .ToList();
+    }
+
     private async Task<Transaction> GetOwnedAsync(string userId, string id, CancellationToken cancellationToken)
     {
         var transaction = InputValidator.IsValidId(id)

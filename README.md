@@ -79,6 +79,7 @@ All endpoints require the sign-in cookie. Without it they return `401`. Errors a
 | POST | `/api/categories` | Create |
 | GET | `/api/transactions?year=2026&month=10&type=&categoryId=&limit=` | List, newest first |
 | GET | `/api/transactions/summary?year=2026&month=10` | Monthly totals and budget usage |
+| GET | `/api/transactions/daily?year=2026&month=10` | Income and expense totals for every day of the month |
 | GET/PUT/DELETE | `/api/transactions/{id}` | Read, update, delete |
 | POST | `/api/transactions` | Create |
 
