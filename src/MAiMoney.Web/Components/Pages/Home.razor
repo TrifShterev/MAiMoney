@@ -15,6 +15,7 @@
     </div>
     <div class="page-actions">
         <MonthPicker Value="month" ValueChanged="ChangeMonthAsync" />
+        <ExportMenu Month="month" />
         <button type="button" class="btn btn-primary" @onclick="() => showEditor = true">
             <Icon Name="plus" />Add transaction
         </button>

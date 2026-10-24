@@ -1,0 +1,60 @@
+@using MAiMoney.Services.Services.Export
+
+@* Plain download links: the browser sends the sign-in cookie, and Blazor's router leaves links with "download" alone. *@
+<div class="app-menu export-menu" @onkeydown="OnKeyDown">
+    <button type="button" class="btn btn-outline-primary export-btn" title="Export @MonthName"
+            aria-haspopup="menu" aria-expanded="@open" @onclick="() => open = !open">
+        <Icon Name="download" />Export
+        <Icon Name="chevron-down" Size="16" CssClass="export-caret" />
+    </button>
+    @if (open)
+    {
+        <div class="app-dropdown app-dropdown-end" role="menu" aria-label="Export">
+            <div class="app-dropdown-header">Export @MonthName</div>
+            @foreach (var (key, icon, title, hint) in Formats)
+            {
+                <a role="menuitem" class="app-dropdown-item text-decoration-none" href="@Href(key)" download @onclick="Close">
+                    <span class="item-icon"><Icon Name="@icon" /></span>
+                    <span class="item-text">
+                        <span class="item-title">@title</span>
+                        <span class="item-hint">@hint</span>
+                    </span>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@if (open)
+{
+    <div class="app-menu-scrim" @onclick="Close"></div>
+}
+
+@code {
+    private static readonly (string Key, string Icon, string Title, string Hint)[] Formats =
+    [
+        (CsvTransactionExporter.Key, "file", "CSV", "Comma-separated, for any app"),
+        (ExcelTransactionExporter.Key, "sheet", "Excel", "Spreadsheet with totals"),
+        (PdfTransactionExporter.Key, "file-text", "PDF", "Printable report")
+    ];
+
+    private bool open;
+
+    /// <summary>The first day of the month to export.</summary>
+    [Parameter, EditorRequired]
+    public DateOnly Month { get; set; }
+
+    private string MonthName => Month.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    private string Href(string key) => $"api/transactions/export/{key}?year={Month.Year}&month={Month.Month}";
+
+    private void Close() => open = false;
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            Close();
+        }
+    }
+}
