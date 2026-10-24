@@ -707,6 +707,249 @@ kbd {
         min-width: 3px;
     }
 
+/* Charts */
+
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem 1.25rem;
+    margin-top: 0.75rem;
+    color: var(--mm-muted);
+    font-size: 0.85rem;
+}
+
+.chart-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-variant-numeric: tabular-nums;
+}
+
+    .chart-legend-item strong {
+        color: var(--mm-text);
+        font-weight: 600;
+    }
+
+.chart-tooltip {
+    position: absolute;
+    z-index: 5;
+    min-width: 13rem;
+    max-width: 17rem;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--mm-border);
+    border-radius: var(--mm-radius-sm);
+    background: var(--mm-surface);
+    box-shadow: var(--mm-shadow-lg);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+
+.chart-tooltip-head {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 600;
+}
+
+.chart-tooltip-note {
+    margin-top: 0.15rem;
+    color: var(--mm-muted);
+}
+
+.chart-tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-top: 0.4rem;
+}
+
+.chart-tooltip-head + .chart-tooltip-row, .chart-tooltip-note + .chart-tooltip-row {
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--mm-border);
+}
+
+.chart-tooltip-amount {
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+}
+
+    .chart-tooltip-amount .text-body-secondary {
+        font-weight: 400;
+    }
+
+.donut-chart {
+    position: relative;
+    max-width: 15rem;
+    margin: 0 auto;
+}
+
+    .donut-chart svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        overflow: visible;
+    }
+
+.donut-track {
+    fill: none;
+    stroke: var(--mm-surface-2);
+    stroke-width: 22;
+}
+
+.donut-slice {
+    fill: none;
+    stroke-width: 22;
+    cursor: pointer;
+    outline: none;
+    transition: stroke-width 0.15s;
+}
+
+    .donut-slice.is-active {
+        stroke-width: 28;
+    }
+
+.donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.donut-center-label {
+    color: var(--mm-muted);
+    font-size: 0.8rem;
+}
+
+.donut-center-value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* Centered on the ring so it never runs off the panel; opens away from the hovered slice. */
+.donut-tooltip {
+    left: 50%;
+}
+
+.donut-tooltip-below {
+    transform: translate(-50%, 0.75rem);
+}
+
+.donut-tooltip-above {
+    transform: translate(-50%, calc(-100% - 0.75rem));
+}
+
+.trend-chart {
+    position: relative;
+}
+
+    .trend-chart svg {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+
+.chart-grid, .chart-baseline {
+    stroke: var(--mm-border);
+    stroke-width: 1;
+}
+
+.chart-grid {
+    stroke-dasharray: 3 4;
+}
+
+.chart-axis {
+    fill: var(--mm-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 575.98px) {
+    /* The chart scales down on a phone; keep the axis labels readable. */
+    .chart-axis {
+        font-size: 17px;
+    }
+}
+
+.chart-bar {
+    rx: 1.5px;
+}
+
+.chart-line {
+    fill: none;
+    stroke-width: 2.25;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.chart-dot {
+    stroke: var(--mm-surface);
+    stroke-width: 2;
+}
+
+.chart-hover-column {
+    fill: var(--mm-surface-2);
+}
+
+.chart-hit {
+    fill: transparent;
+}
+
+.trend-tooltip {
+    top: 0;
+    min-width: 11rem;
+    transform: translateX(0.75rem);
+}
+
+.trend-tooltip-left {
+    transform: translateX(calc(-100% - 0.75rem));
+}
+
+.chart-toggle {
+    display: inline-flex;
+    gap: 0.2rem;
+    padding: 0.2rem;
+    border-radius: 0.65rem;
+    background: var(--mm-surface-2);
+}
+
+.chart-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.6rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--mm-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+    .chart-toggle-btn:hover {
+        color: var(--mm-text);
+    }
+
+    .chart-toggle-btn.active {
+        background: var(--mm-surface);
+        color: var(--mm-brand);
+        box-shadow: var(--mm-shadow-sm);
+    }
+
+    .chart-toggle-btn:focus-visible {
+        outline: 2px solid var(--mm-brand-ring);
+        outline-offset: 2px;
+    }
+
 .budget-row {
     font-variant-numeric: tabular-nums;
 }

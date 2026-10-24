@@ -99,6 +99,25 @@ else
         </div>
     </div>
 
+    @if (HasActivity)
+    {
+        <div class="row g-4 mb-4">
+            <div class="col-lg-5">
+                <section class="panel h-100">
+                    <div class="panel-header">
+                        <h2 class="panel-title">Income vs expenses</h2>
+                    </div>
+                    <BalanceDonut Summary="summary" />
+                </section>
+            </div>
+            <div class="col-lg-7">
+                <section class="panel h-100">
+                    <DailyTrendChart Days="days" />
+                </section>
+            </div>
+        </div>
+    }
+
     <div class="row g-4">
         <div class="col-lg-7">
             <section class="panel">
@@ -225,9 +244,13 @@ else
     private List<CategorySummary> expenseCategories = [];
     private List<CategorySummary> incomeCategories = [];
     private IReadOnlyList<TransactionDto> recent = [];
+    private IReadOnlyList<DailyTotal> days = [];
     private bool showEditor;
 
     private string MonthName => month.ToString("MMMM", CultureInfo.InvariantCulture);
+
+    // The charts only show for a month with transactions.
+    private bool HasActivity => summary is not null && summary.TotalIncome + summary.TotalExpenses > 0;
 
     private int BudgetCount => expenseCategories.Count(c => c.MonthlyBudget is not null);
 
@@ -246,6 +269,7 @@ else
         expenseCategories = summary.Categories.Where(c => c.Type == TransactionType.Expense).ToList();
         incomeCategories = summary.Categories.Where(c => c.Type == TransactionType.Income && c.Total > 0).ToList();
         recent = await Transactions.GetAsync(userId, new TransactionFilter { Year = month.Year, Month = month.Month, Limit = 6 });
+        days = HasActivity ? await Transactions.GetDailyTotalsAsync(userId, month.Year, month.Month) : [];
     }
 
     private Task ChangeMonthAsync(DateOnly value)

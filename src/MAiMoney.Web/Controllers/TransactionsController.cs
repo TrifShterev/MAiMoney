@@ -19,6 +19,10 @@ public class TransactionsController(ITransactionService transactions) : Controll
     public Task<MonthlySummary> GetSummary([FromQuery] int year, [FromQuery] int month, CancellationToken cancellationToken) =>
         transactions.GetMonthlySummaryAsync(User.GetUserId(), year, month, cancellationToken);
 
+    [HttpGet("daily")]
+    public Task<IReadOnlyList<DailyTotal>> GetDaily([FromQuery] int year, [FromQuery] int month, CancellationToken cancellationToken) =>
+        transactions.GetDailyTotalsAsync(User.GetUserId(), year, month, cancellationToken);
+
     [HttpGet("{id}")]
     public Task<TransactionDto> Get(string id, CancellationToken cancellationToken) =>
         transactions.GetByIdAsync(User.GetUserId(), id, cancellationToken);

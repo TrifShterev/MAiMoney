@@ -17,4 +17,7 @@ public interface ITransactionService
 
     /// <summary>Income and expense totals for one month, broken down by category and compared to budgets.</summary>
     Task<MonthlySummary> GetMonthlySummaryAsync(string userId, int year, int month, CancellationToken cancellationToken = default);
+
+    /// <summary>Income and expense totals per day of one month; days without activity are included with zeros.</summary>
+    Task<IReadOnlyList<DailyTotal>> GetDailyTotalsAsync(string userId, int year, int month, CancellationToken cancellationToken = default);
 }

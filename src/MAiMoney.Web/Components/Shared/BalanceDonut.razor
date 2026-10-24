@@ -1,0 +1,121 @@
+@inject MoneyFormatter Money
+
+@* Income against expenses for one month. Hovering or focusing a slice shows that side's categories. *@
+<div class="donut">
+    <div class="donut-chart">
+        <svg viewBox="0 0 200 200" role="group" aria-label="Income compared to expenses">
+            <circle class="donut-track" cx="100" cy="100" r="@Radius" />
+            <g transform="rotate(-90 100 100)">
+                @foreach (var slice in slices)
+                {
+                    <circle class="donut-slice @(slice.Type == active ? "is-active" : null)" cx="100" cy="100" r="@Radius"
+                            pathLength="100" stroke="@SliceColor(slice.Type)"
+                            stroke-dasharray="@Num(slice.Length) @Num(100 - slice.Length)" stroke-dashoffset="@Num(-slice.Start)"
+                            tabindex="0" aria-label="@SideName(slice.Type): @Money.Format(slice.Total), @Pct(slice.Percent)%"
+                            @onmouseenter="() => active = slice.Type" @onmouseleave="() => active = null"
+                            @onfocus="() => active = slice.Type" @onblur="() => active = null" />
+                }
+            </g>
+        </svg>
+
+        <div class="donut-center">
+            <span class="donut-center-label">Balance</span>
+            <span class="donut-center-value @(Summary.Balance < 0 ? "text-expense" : null)">@Money.Format(Summary.Balance)</span>
+        </div>
+
+        @if (slices.FirstOrDefault(s => s.Type == active) is { } current)
+        {
+            var categories = Summary.Categories.Where(c => c.Type == current.Type && c.Total > 0).ToList();
+            var top = MidPointTop(current);
+            <div class="chart-tooltip donut-tooltip @(top < 50 ? "donut-tooltip-below" : "donut-tooltip-above")" style="top: @Num(top)%">
+                <div class="chart-tooltip-head">
+                    <span class="category-dot" style="background-color: @SliceColor(current.Type)"></span>
+                    <span>@SideName(current.Type)</span>
+                    <span class="ms-auto">@Money.Format(current.Total)</span>
+                </div>
+                <div class="chart-tooltip-note">@Pct(current.Percent)% of income and expenses together</div>
+                @foreach (var category in categories.Take(MaxRows))
+                {
+                    <div class="chart-tooltip-row">
+                        <CategoryLabel Name="@category.Name" Color="@category.Color" />
+                        <span class="chart-tooltip-amount">
+                            @Money.Format(category.Total)
+                            <span class="text-body-secondary">@Pct(category.Total / current.Total * 100)%</span>
+                        </span>
+                    </div>
+                }
+                @if (categories.Count > MaxRows)
+                {
+                    <div class="chart-tooltip-note">and @(categories.Count - MaxRows) more</div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="chart-legend">
+        @foreach (var type in new[] { TransactionType.Income, TransactionType.Expense })
+        {
+            <span class="chart-legend-item">
+                <span class="category-dot" style="background-color: @SliceColor(type)"></span>
+                @SideName(type)
+                <strong>@Money.Format(type == TransactionType.Income ? Summary.TotalIncome : Summary.TotalExpenses)</strong>
+            </span>
+        }
+    </div>
+</div>
+
+@code {
+    private const double Radius = 78;
+    private const int MaxRows = 8;
+
+    /// <summary>Space between the two slices, in percent of the ring.</summary>
+    private const decimal Gap = 1.2m;
+
+    [Parameter, EditorRequired]
+    public MonthlySummary Summary { get; set; } = default!;
+
+    private List<Slice> slices = [];
+    private TransactionType? active;
+
+    protected override void OnParametersSet()
+    {
+        slices = [];
+        var total = Summary.TotalIncome + Summary.TotalExpenses;
+        if (total <= 0)
+        {
+            return;
+        }
+
+        var parts = new[] { (TransactionType.Income, Summary.TotalIncome), (TransactionType.Expense, Summary.TotalExpenses) }
+            .Where(p => p.Item2 > 0)
+            .ToList();
+        var gap = parts.Count > 1 ? Gap : 0;
+        var start = 0m;
+        foreach (var (type, amount) in parts)
+        {
+            var percent = amount / total * 100;
+            slices.Add(new Slice(type, amount, percent, start + gap / 2, Math.Max(percent - gap, 0.4m)));
+            start += percent;
+        }
+    }
+
+    /// <summary>The height of the middle of the slice's arc, in percent of the chart box.</summary>
+    private static double MidPointTop(Slice slice)
+    {
+        var angle = (double)(slice.Start + slice.Length / 2) / 100 * 2 * Math.PI;
+        return (100 - Radius * Math.Cos(angle)) / 2;
+    }
+
+    private static string SliceColor(TransactionType type) =>
+        type == TransactionType.Income ? "var(--mm-income)" : "var(--mm-expense)";
+
+    private static string SideName(TransactionType type) => type == TransactionType.Income ? "Income" : "Expenses";
+
+    private static string Num(decimal value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string Num(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string Pct(decimal value) => value.ToString("0.#", CultureInfo.InvariantCulture);
+
+    private record Slice(TransactionType Type, decimal Total, decimal Percent, decimal Start, decimal Length);
+}
